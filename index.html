@@ -26,9 +26,9 @@ html,body{margin:0;padding:0;overscroll-behavior:none;-webkit-text-size-adjust:1
 body{background:radial-gradient(120% 80% at 50% -10%,#1d2740 0%,var(--lacquer) 60%);
   color:var(--text);font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans",system-ui,sans-serif;
   font-size:15px;line-height:1.6;min-height:100vh;
-  padding:10px 10px 0}
+  padding:calc(10px + env(safe-area-inset-top)) 12px 0}
 .wrap{max-width:520px;margin:0 auto}
-.masthead{display:flex;align-items:baseline;gap:9px;margin-bottom:6px}
+.masthead{display:flex;align-items:baseline;gap:9px;margin-bottom:8px;padding-top:2px}
 .masthead h1{font-family:"Hiragino Mincho ProN","Yu Mincho",serif;font-weight:600;
   font-size:17px;letter-spacing:.13em;margin:0;color:var(--ivory)}
 .masthead .ver{font-size:11px;letter-spacing:.2em;color:var(--brass);font-family:ui-monospace,monospace}
@@ -168,7 +168,9 @@ select{font:inherit;font-size:12px;background:var(--lacquer-2);color:var(--text)
 /* ---- 画面切替 ---- */
 .screen{display:none}
 .screen.active{display:block}
-.scr-head{display:flex;align-items:center;gap:10px;padding:6px 0 10px;border-bottom:1px solid var(--line);margin-bottom:12px}
+.scr-head{display:flex;align-items:center;gap:12px;padding:10px 0 12px;
+  border-bottom:1px solid var(--line);margin-bottom:14px}
+.scr-head>button{min-height:46px;min-width:74px;padding:10px 14px;font-size:14px}
 .scr-head h2{font-family:"Hiragino Mincho ProN",serif;font-size:16px;letter-spacing:.1em;margin:0;color:var(--ivory);font-weight:600}
 .tut-count{margin-left:auto;font-family:ui-monospace,monospace;font-size:11px;color:var(--brass)}
 button.big{width:100%;padding:14px;font-size:15px;letter-spacing:.08em}
@@ -176,7 +178,7 @@ button.big{width:100%;padding:14px;font-size:15px;letter-spacing:.08em}
 /* ---- タイトル ---- */
 #scr-title{min-height:100vh;display:none;place-items:center}
 #scr-title.active{display:grid}
-.title-wrap{text-align:center;padding:24px 18px calc(24px + env(safe-area-inset-bottom));max-width:380px;margin:0 auto}
+.title-wrap{text-align:center;padding:calc(30px + env(safe-area-inset-top)) 18px calc(30px + env(safe-area-inset-bottom));max-width:380px;margin:0 auto}
 .title-mark{font-family:"Hiragino Mincho ProN",serif;font-size:64px;line-height:1;color:var(--ivory);
   width:110px;height:110px;margin:0 auto 18px;display:flex;align-items:center;justify-content:center;
   clip-path:polygon(50% 0%,86% 19%,100% 100%,0% 100%,14% 19%);
@@ -192,10 +194,10 @@ button.big{width:100%;padding:14px;font-size:15px;letter-spacing:.08em}
 
 /* ---- 難易度選択 ---- */
 .level-list{display:flex;flex-direction:column;gap:8px}
-.lv{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:13px 14px}
-.lv .nm{font-family:"Hiragino Mincho ProN",serif;font-size:16px;color:var(--ivory);min-width:3.6em}
+.lv{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:16px 16px}
+.lv .nm{font-family:"Hiragino Mincho ProN",serif;font-size:17px;color:var(--ivory);flex:1}
 .lv .ds{font-size:12px;color:var(--text-dim);flex:1}
-.lv .st{font-family:ui-monospace,monospace;font-size:11px;color:var(--brass);letter-spacing:.1em}
+.lv .st{font-size:13px;color:var(--brass);letter-spacing:.14em}
 
 /* ---- チュートリアル ---- */
 .tut-body{font-size:13.5px;line-height:1.95;color:var(--text);padding-bottom:80px}
@@ -687,11 +689,11 @@ function negamax(b,hand,me,depth,alpha,beta,end){
 }
 /* レベル別パラメータ：depth=最大深さ, ms=思考時間, noise=評価ゆらぎ */
 const LEVELS={
-  1:{depth:1,ms:150,noise:150},   // 入門
-  2:{depth:2,ms:500,noise:45},    // 初級
-  3:{depth:3,ms:1200,noise:14},   // 中級
-  4:{depth:4,ms:2200,noise:4},    // 上級
-  5:{depth:6,ms:3500,noise:0}     // 名人
+  1:{depth:1,ms:120,noise:2500,blunder:0.72}, // 入門：多くを無作為に指す
+  2:{depth:1,ms:250,noise:200,blunder:0.20},  // 初級
+  3:{depth:2,ms:800,noise:45,blunder:0.03},   // 中級
+  4:{depth:4,ms:2200,noise:5,blunder:0},      // 上級
+  5:{depth:6,ms:3500,noise:0,blunder:0}       // 名人
 };
 function think(b,hand,me,level){
   const P=LEVELS[level]||LEVELS[2];
@@ -699,6 +701,14 @@ function think(b,hand,me,level){
   TT.clear();
   const acts=legalActions(b,pruneHand(hand),me);
   if(!acts.length) return null;
+  // 弱いレベルは一定確率で読まずに指す（ただし大将を取れる手だけは逃さない）
+  if(P.blunder && Math.random()<P.blunder){
+    const kill=acts.find(a=>a.k==="m"&&b[a.to]&&dT(b[a.to])===GEN);
+    if(kill) return kill;
+    const quiet=acts.filter(a=>a.k!=="r");
+    const pool=quiet.length?quiet:acts;
+    return pool[(Math.random()*pool.length)|0];
+  }
   let best=null;
   for(let d=1;d<=P.depth;d++){
     let bv=-Infinity, bs=[];
@@ -1049,17 +1059,17 @@ document.getElementById("btnToTitle").addEventListener("click",()=>showScreen("t
 
 /* ================= 難易度選択 ================= */
 const LEVEL_INFO=[
-  {v:1,nm:"入門",ds:"1手だけ読む。手がぶれるので初めてでも勝てる",st:"★"},
-  {v:2,nm:"初級",ds:"2手読み。タダ取りは見逃さない",st:"★★"},
-  {v:3,nm:"中級",ds:"3手読み。取り返しまで計算してくる",st:"★★★"},
-  {v:4,nm:"上級",ds:"4手読み。ほぼ最善手を指す",st:"★★★★"},
-  {v:5,nm:"名人",ds:"6手読み・ゆらぎなし。寄せが正確",st:"★★★★★"}
+  {v:1,nm:"入門",st:"★"},
+  {v:2,nm:"初級",st:"★★"},
+  {v:3,nm:"中級",st:"★★★"},
+  {v:4,nm:"上級",st:"★★★★"},
+  {v:5,nm:"名人",st:"★★★★★"}
 ];
 function renderLevels(){
   const el=document.getElementById("levelList");
   el.innerHTML=LEVEL_INFO.map(l=>
     `<button class="lv" data-lv="${l.v}"><span class="nm">${l.nm}</span>`
-    +`<span class="ds">${l.ds}</span><span class="st">${l.st}</span></button>`).join("");
+    +`<span class="st">${l.st}</span></button>`).join("");
   el.querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{
     OPT.level=+b.dataset.lv;
     const sel=document.getElementById("optLevel"); if(sel) sel.value=String(OPT.level);
@@ -1185,7 +1195,6 @@ ${mini({n:5,p:[{x:2,y:2,o:1,t:GEN,f:U},{x:2,y:1,o:0,t:GU,f:D}],m:[{x:2,y:2,k:"ng
 <tr><td><b>詰み</b></td><td>王手を受けきれない</td></tr>
 <tr><td><b>着手不能</b></td><td>指せる手がない</td></tr>
 <tr><td><b>全滅</b></td><td>相手の総大将以外が一枚も残っていない</td></tr>
-<tr><td><b>千日手</b></td><td>同じ局面が4回で引き分け。連続王手なら王手側の負け</td></tr>
 </table>
 <h3>対局前の配置</h3>
 <p>15枚を自陣3段に、<b>向きも決めて</b>並べます。<b class="em">相手の配置は最初から見えています</b>ので、それを見てから組み立てられます。</p>
