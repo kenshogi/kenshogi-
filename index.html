@@ -165,6 +165,26 @@ select{font:inherit;font-size:12px;background:var(--lacquer-2);color:var(--text)
 .hidden{display:none}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 
+/* ---- 勝率バー ---- */
+#winbar{width:min(100%,56vh);margin:8px auto 0}
+#winbar.hidden{display:none}
+.wb-track{height:7px;background:#4d8a7e;overflow:hidden;border:1px solid var(--brass-dim)}
+.wb-fill{height:100%;background:linear-gradient(90deg,#e9dfc6,#d9cbab);width:50%;transition:width .35s ease}
+.wb-txt{display:flex;justify-content:space-between;font-size:11px;font-family:ui-monospace,monospace;
+  color:var(--text-dim);margin-top:3px}
+.wb-txt b{color:var(--ivory);font-weight:500}
+
+/* ---- 練習 ---- */
+#drillBar{width:min(100%,56vh);margin:8px auto 0;padding:10px 12px;
+  border:1px solid var(--brass);background:rgba(160,139,82,.14);font-size:13px;line-height:1.6}
+#drillBar.hidden{display:none}
+#drillBar .dt{color:var(--brass);font-family:ui-monospace,monospace;font-size:10.5px;letter-spacing:.18em}
+#drillBar .dm{color:var(--ivory);margin-top:3px}
+#drillBar .ok{color:var(--verdigris);font-weight:600}
+#drillBar .ng{color:var(--shu);font-weight:600}
+#drillBar .btns{display:flex;gap:7px;margin-top:9px}
+#drillBar .btns button{flex:1;padding:10px}
+
 /* ---- 相手の指し手 ---- */
 #enemyMove{width:min(100%,56vh);margin:6px auto 0;padding:9px 11px;
   background:rgba(200,69,47,.14);border:1px solid rgba(200,69,47,.55);
@@ -257,6 +277,7 @@ button.big{width:100%;padding:14px;font-size:15px;letter-spacing:.08em}
     <div class="title-menu">
       <button class="key big" data-go="level">対局をはじめる</button>
       <button class="big" data-go="tutorial">あそびかた</button>
+      <button class="big" id="btnDrill">練習する</button>
       <button class="big" data-go="config">設定</button>
     </div>
     <div class="title-foot">9×9・15枚・三すくみ×向き</div>
@@ -305,6 +326,8 @@ button.big{width:100%;padding:14px;font-size:15px;letter-spacing:.08em}
 
   <div class="hand h1" id="hand1"></div>
   <div class="board-frame"><div class="board" id="board"></div></div>
+  <div id="winbar" class="hidden"><div class="wb-track"><div class="wb-fill" id="wbFill"></div></div><div class="wb-txt" id="wbTxt"></div></div>
+  <div id="drillBar" class="hidden"></div>
   <div id="enemyMove" class="hidden"></div>
   <div class="hand h0" id="hand0"></div>
 
@@ -331,7 +354,7 @@ button.big{width:100%;padding:14px;font-size:15px;letter-spacing:.08em}
     </table>
     <b>じゃんけん</b>：愚＞千＞波＞愚。同種はあいこで取れない。<br><b>総大将</b>：目の前の直線しか見えず、<b>見えている相手しか討てない</b>。正面で見合った相手とは互いに討てない。横と背後から討たれる。<br>
     <b>勝敗</b>：相手の総大将を取る／<b>相手の総大将以外を全滅させる</b>（盤上にも持ち駒にも一枚も残っていない状態）。<br>
-    <b>持ち駒</b>：取った駒（総大将除く）は<b>盤上どこでも</b>空きマスに<b>向きを選んで</b>打てる。<br>
+    <b>持ち駒</b>：取った駒（総大将除く）は<b>敵陣以外</b>の空きマスに<b>向きを選んで</b>打てる。<br>
     <b>王手</b>：総大将が次に取られる状態にされたら、それを解消する手しか指せない。解消できなければ<b>詰み</b>で負け。逃げる・攻め手を取る・割り込む他に、<b>総大将の向きを変えて睨み返す</b>受けがある（見合えばじゃんけんとなり総大将は無敵）。<br><b>手番</b>：移動／向き変え（攻撃不可）／持ち駒を打つ、のいずれか。待機はできない。
   </div></details>
 
@@ -352,8 +375,8 @@ button.big{width:100%;padding:14px;font-size:15px;letter-spacing:.08em}
       </label>
       <label>持ち駒を打てる範囲
         <select id="optDrop">
-          <option value="noenemy">敵陣以外</option>
-          <option value="any" selected>盤上どこでも</option>
+          <option value="noenemy" selected>敵陣以外</option>
+          <option value="any">盤上どこでも</option>
         </select>
       </label>
       <label>王手・詰みのルール
@@ -427,11 +450,11 @@ function rotVec(dx,dy,face){
 
 /* ================= 状態 ================= */
 let S, hist=[], busy=false;
-let OPT={level:2, arrows:"on", check:true, genFov:"strict", dropZone:"any"};
+let OPT={level:2, arrows:"on", check:true, genFov:"strict", dropZone:"noenemy", genRotate:true, winbar:true};
 function fresh(){
   return {phase:"setup",board:new Uint8Array(81),hand:[[0,0,0,0],[0,0,0,0]],
     sel:null,armed:null,dropArmed:null,pendingDrop:null,
-    log:[],turn:0,winner:null,winBy:"",move:1,last:null,enemyMove:null,enemyCells:null,
+    log:[],turn:0,winner:null,winBy:"",move:1,last:null,enemyMove:null,enemyCells:null,drill:null,drillState:null,
     posCount:{},plies:[]};
 }
 /* 局面キー：盤面（向き含む）＋持ち駒＋手番 */
@@ -521,7 +544,8 @@ function actions(b,hand,owner){
       if(m.kind==="block") continue;
       out.push({k:"m",from:i,to:m.to,face:fc});
     }
-    for(let d=0;d<4;d++) if(d!==fc) out.push({k:"r",from:i,dir:d});
+    if(!(dT(c)===GEN && !OPT.genRotate))
+      for(let d=0;d<4;d++) if(d!==fc) out.push({k:"r",from:i,dir:d});
   }
   if(hand){
     const zones=dropZones(b,owner);
@@ -585,6 +609,25 @@ function forceCount(b,hand,o){
   let n=handTotal(hand,o);
   for(let i=0;i<81;i++){const c=b[i]; if(c&&dO(c)===o&&dT(c)!==GEN) n++}
   return n;
+}
+
+/* 表示用の軽い形勢判断 */
+function quickScore(me){
+  let s=0, gp=[-1,-1];
+  for(let i=0;i<81;i++){
+    const c=S.board[i]; if(!c) continue;
+    const o=dO(c), t=dT(c);
+    if(t===GEN){gp[o]=i;continue}
+    s+=(o===me?1:-1)*10;
+  }
+  for(const t of [GU,CH,PA]) s+=(S.hand[me][t]-S.hand[1-me][t])*11;
+  if(gp[1-me]>=0) s+=threats(S.board,me,gp[1-me])*26;
+  if(gp[me]>=0)  s-=threats(S.board,1-me,gp[me])*34;
+  return s;
+}
+function winRate(){
+  if(S.winner!=null) return S.winner<0?0.5:(S.winner===HUMAN?1:0);
+  return 1/(1+Math.exp(-quickScore(HUMAN)/24));
 }
 
 /* ================= CPU ================= */
@@ -774,6 +817,29 @@ function pushHist(){
     pc:Object.assign({},S.posCount),pl:S.plies.slice()});
 }
 function endWin(w,by){S.winner=w;S.winBy=by;render()}
+/* 詰みのあと、実際に総大将を討ち取るところまで見せる */
+function finishByCapture(loser){
+  const winner=1-loser, g=genPos(S.board,loser);
+  busy=true; render();
+  setTimeout(()=>{
+    if(g>=0){
+      outer:
+      for(let i=0;i<81;i++){
+        const c=S.board[i]; if(!c||dO(c)!==winner) continue;
+        for(const m of moves(S.board,i)){
+          if(m.to===g&&m.kind==="take"){
+            S.board[g]=S.board[i]; S.board[i]=0;
+            S.last=[i,g]; S.enemyCells=[g];
+            S.log.unshift(`<b>—</b> ${SQ(g)} 総大将を討ち取った`);
+            break outer;
+          }
+        }
+      }
+    }
+    busy=false;
+    endWin(winner,"総大将を討ち取った");
+  },850);
+}
 function performMove(from,to,face){
   pushHist();
   const c=S.board[from], t=dT(c), q=S.board[to], owner=S.turn;
@@ -791,8 +857,8 @@ function performMove(from,to,face){
       : `${KANJI[t]} が <b>${SQ(to)}</b> へ動いた`;
     S.enemyCells=[from,to];
   }else{S.enemyMove=null;S.enemyCells=null}
-  if(q&&dT(q)===GEN) return endWin(owner,"総大将を討ち取った");
-  if(forceCount(S.board,S.hand,1-owner)===0) return endWin(owner,"相手の総大将以外を全滅させた");
+  if(S.drill==null && q&&dT(q)===GEN) return endWin(owner,"総大将を討ち取った");
+  if(S.drill==null && forceCount(S.board,S.hand,1-owner)===0) return endWin(owner,"相手の総大将以外を全滅させた");
   endTurn();
 }
 function performRotate(idx,dir){
@@ -822,6 +888,7 @@ function endTurn(){
   if(S.enemyMove && OPT.check && S.turn===HUMAN && inCheck(S.board,HUMAN))
     S.enemyMove += ' 　<b>王手</b>';
   render();
+  if(S.drill!=null){ drillJudge(); return }
   if(S.winner==null && S.phase==="play"){
     if(checkSennichite()){
       S.log.unshift(`<b>${S.move}.</b> ${S.winBy}`); render(); return;
@@ -830,7 +897,8 @@ function endTurn(){
     if(!acts.length){
       const mated=OPT.check&&inCheck(S.board,S.turn);
       S.log.unshift(`<b>${S.move}.</b> ${S.turn===0?"▲":"△"}${mated?"詰み":"着手不能"}`);
-      return endWin(1-S.turn,mated?"総大将を詰めた":"相手が着手不能");
+      if(mated) return finishByCapture(S.turn);
+      return endWin(1-S.turn,"相手が着手不能");
     }
     if(S.turn===CPU) queueCpu();
   }
@@ -893,6 +961,17 @@ function render(){
     if(S.enemyMove && S.phase==="play" && S.winner==null){em.innerHTML="相手の手："+S.enemyMove;em.classList.remove("hidden")}
     else em.classList.add("hidden");
   }
+  const wb=document.getElementById("winbar");
+  if(wb){
+    if(OPT.winbar && S.phase==="play" && S.drill==null){
+      const r=winRate();
+      wb.classList.remove("hidden");
+      document.getElementById("wbFill").style.width=(r*100).toFixed(0)+"%";
+      document.getElementById("wbTxt").innerHTML=
+        `<span>あなた <b>${Math.round(r*100)}%</b></span><span><b>${Math.round((1-r)*100)}%</b> 相手</span>`;
+    }else wb.classList.add("hidden");
+  }
+  renderDrill();
   renderRail();renderPalette();renderStatus();renderHands();renderPanels();
 }
 function renderStatus(){
@@ -991,9 +1070,10 @@ function renderRail(){
     ? `${SQ(S.sel)} ${FULL[dT(c)]}｜向きを決める`
     : `${SQ(S.sel)} ${FULL[dT(c)]}｜移動先を選ぶ／向きだけ変える（1手・攻撃不可）`;
   el.appendChild(lab);
+  const canRot = !(S.phase==="play" && dT(c)===GEN && !OPT.genRotate);
   for(let d=0;d<4;d++){
     const b=document.createElement("button");
-    b.className="arrow"; b.textContent=ARROW[d]; b.disabled=(dF(c)===d);
+    b.className="arrow"; b.textContent=ARROW[d]; b.disabled=(dF(c)===d)||!canRot;
     b.addEventListener("click",()=>{
       if(S.phase==="setup"){S.board[S.sel]=enc(HUMAN,dT(c),d);render()}
       else if(!isLegalHere({k:"r",from:S.sel,dir:d})){
@@ -1092,7 +1172,8 @@ document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=
   if(g==="config") renderConfig();
   showScreen(g);
 }));
-document.getElementById("btnToTitle").addEventListener("click",()=>showScreen("title"));
+document.getElementById("btnToTitle").addEventListener("click",()=>{S.drill=null;showScreen("title")});
+document.getElementById("btnDrill").addEventListener("click",()=>startDrill(0));
 
 /* ================= 難易度選択 ================= */
 const LEVEL_INFO=[
@@ -1254,8 +1335,94 @@ function renderTut(){
 document.getElementById("tutPrev").addEventListener("click",()=>{if(tutPage>0){tutPage--;renderTut()}});
 document.getElementById("tutNext").addEventListener("click",()=>{
   if(tutPage<TUT.length-1){tutPage++;renderTut()}
-  else{renderLevels();showScreen("level")}
+  else{startDrill(0)}
 });
+
+/* ================= 練習モード ================= */
+const DRILLS=[
+{t:"背中を討つ",
+ msg:"相手の <b>千</b> は上を向いていて、こちらが見えていない。<b>愚</b> を進めて討ち取ろう。",
+ setup(){
+   S.board[IDX(4,5)]=enc(0,GU,0);
+   S.board[IDX(4,4)]=enc(1,CH,0);
+   S.board[IDX(4,8)]=enc(0,GEN,0);
+   S.board[IDX(4,0)]=enc(1,GEN,2);
+ },
+ goal(){ return S.hand[0][CH]>=1 }},
+
+{t:"見合ったらじゃんけん",
+ msg:"相手の <b>千</b> はこちらを向いている。見合った相手はじゃんけんで決まる。<b>愚は千に勝つ</b>ので討てる。",
+ setup(){
+   S.board[IDX(4,5)]=enc(0,GU,0);
+   S.board[IDX(4,4)]=enc(1,CH,2);
+   S.board[IDX(2,4)]=enc(1,PA,2);
+   S.board[IDX(4,8)]=enc(0,GEN,0);
+   S.board[IDX(4,0)]=enc(1,GEN,2);
+ },
+ goal(){ return S.hand[0][CH]>=1 }},
+
+{t:"持ち駒を打つ",
+ msg:"相手の <b>千</b> の背後 <b>5四</b> に、持ち駒の <b>波</b> を <b>↑向き</b> で打とう。次の手番で討ち取れる形になる。",
+ setup(){
+   S.hand[0][PA]=1;
+   S.board[IDX(4,3)]=enc(1,CH,0);
+   S.board[IDX(4,8)]=enc(0,GEN,0);
+   S.board[IDX(4,0)]=enc(1,GEN,2);
+ },
+ goal(){ const c=S.board[IDX(4,4)]; return !!c && dO(c)===0 && dT(c)===PA }},
+
+{t:"一手詰め",
+ msg:"相手の総大将は下を向いていて、<b>斜めが見えない</b>。逃げ道はすべて塞いである。<b>波</b> を斜めへ回り込ませて詰まそう。",
+ setup(){
+   S.board[IDX(4,0)]=enc(1,GEN,2);
+   S.board[IDX(4,1)]=enc(0,GU,0);
+   S.board[IDX(2,0)]=enc(0,GU,1);
+   S.board[IDX(6,0)]=enc(0,GU,3);
+   S.board[IDX(6,2)]=enc(0,PA,0);
+   S.board[IDX(3,2)]=enc(0,PA,0);
+   S.board[IDX(4,8)]=enc(0,GEN,0);
+ },
+ goal(){ return OPT.check && inCheck(S.board,1) && legalActions(S.board,S.hand,1).length===0 }}
+];
+function startDrill(i){
+  S=fresh(); hist=[]; busy=false;
+  S.drill=i; S.drillState="play";
+  DRILLS[i].setup();
+  S.phase="play"; S.turn=0; S.posCount={}; S.plies=[];
+  showScreen("game"); render();
+}
+function drillJudge(){
+  const d=DRILLS[S.drill];
+  if(d.goal()){ S.drillState="ok"; render(); return }
+  S.drillState="ng"; render();
+  setTimeout(()=>{ if(S.drill!=null) startDrill(S.drill) },1500);
+}
+function renderDrill(){
+  const el=document.getElementById("drillBar");
+  if(!el) return;
+  if(S.drill==null){el.classList.add("hidden");return}
+  el.classList.remove("hidden");
+  const d=DRILLS[S.drill];
+  const head=`<div class="dt">れんしゅう ${S.drill+1} / ${DRILLS.length}　${d.t}</div>`;
+  if(S.drillState==="ok"){
+    const last=S.drill===DRILLS.length-1;
+    el.innerHTML=head+`<div class="dm ok">できた。</div><div class="btns">`
+      +`<button data-d="retry">もう一度</button>`
+      +`<button class="key" data-d="${last?"end":"next"}">${last?"対局へ":"次の練習"}</button></div>`;
+  }else if(S.drillState==="ng"){
+    el.innerHTML=head+`<div class="dm ng">うまくいかなかった。やり直そう。</div>`;
+  }else{
+    el.innerHTML=head+`<div class="dm">${d.msg}</div><div class="btns">`
+      +`<button data-d="retry">やり直す</button><button data-d="quit">やめる</button></div>`;
+  }
+  el.querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{
+    const a=b.dataset.d;
+    if(a==="retry") startDrill(S.drill);
+    else if(a==="next") startDrill(S.drill+1);
+    else if(a==="end"){S.drill=null;renderLevels();showScreen("level")}
+    else {S.drill=null;showScreen("title")}
+  }));
+}
 
 /* ================= 設定画面 ================= */
 function renderConfig(){
@@ -1272,6 +1439,12 @@ function renderConfig(){
    <label>王手・詰みのルール<select id="cfgCheck">
      <option value="on" ${OPT.check?"selected":""}>あり</option>
      <option value="off" ${!OPT.check?"selected":""}>なし</option></select></label>
+   <label>勝率の表示<select id="cfgWin">
+     <option value="on" ${OPT.winbar?"selected":""}>あり</option>
+     <option value="off" ${!OPT.winbar?"selected":""}>なし</option></select></label>
+   <label>総大将の向き変え<select id="cfgRot">
+     <option value="on" ${OPT.genRotate?"selected":""}>できる</option>
+     <option value="off" ${!OPT.genRotate?"selected":""}>できない</option></select></label>
    <label>移動方向の目印<select id="cfgArrow">
      <option value="on" ${OPT.arrows==="on"?"selected":""}>常時表示</option>
      <option value="sel" ${OPT.arrows==="sel"?"selected":""}>選択時のみ</option>
@@ -1281,6 +1454,8 @@ function renderConfig(){
   sync("cfgDrop",v=>{OPT.dropZone=v;const s=document.getElementById("optDrop");if(s)s.value=v});
   sync("cfgFov",v=>{OPT.genFov=v;const s=document.getElementById("optGenFov");if(s)s.value=v});
   sync("cfgCheck",v=>{OPT.check=(v==="on");const s=document.getElementById("optCheck");if(s)s.value=v});
+  sync("cfgWin",v=>{OPT.winbar=(v==="on")});
+  sync("cfgRot",v=>{OPT.genRotate=(v==="on")});
   sync("cfgArrow",v=>{OPT.arrows=v;const s=document.getElementById("optArrow");if(s)s.value=v});
 }
 
