@@ -141,6 +141,7 @@ details.panel>summary::after{content:" ▾";opacity:.6}
 details.panel[open]>summary::after{content:" ▴"}
 details.panel>*:not(summary){margin-top:8px}
 .infozone{padding-bottom:40px}
+.infozone.hidden{display:none}
 .panel h2{font-size:11px;letter-spacing:.22em;color:var(--brass);margin:0 0 7px;
   font-weight:600;font-family:ui-monospace,monospace}
 .log{font-size:12px;color:var(--text-dim);max-height:110px;overflow:auto;line-height:1.7}
@@ -342,7 +343,7 @@ button.big{width:100%;padding:14px;font-size:15px;letter-spacing:.08em}
     <div style="margin-top:9px"><button class="key" id="btnNew">新しい対局</button></div>
   </div>
 
-  <div class="infozone">
+  <div class="infozone" id="infozone">
   <details class="panel"><summary>ルール要旨</summary><div class="rules">
     駒は人間と同じで<b>正面にしか目がない</b>。<b>総大将は目の前の直線だけ</b>しか見ていない（周囲は部下任せ）。相手が自分の<b>正面側（斜め前を含む）</b>にいれば「見えている」。<br>
     <table>
@@ -377,6 +378,12 @@ button.big{width:100%;padding:14px;font-size:15px;letter-spacing:.08em}
         <select id="optDrop">
           <option value="noenemy" selected>敵陣以外</option>
           <option value="any">盤上どこでも</option>
+        </select>
+      </label>
+      <label>効果音
+        <select id="optSound">
+          <option value="on" selected>あり</option>
+          <option value="off">なし</option>
         </select>
       </label>
       <label>王手・詰みのルール
@@ -450,7 +457,7 @@ function rotVec(dx,dy,face){
 
 /* ================= 状態 ================= */
 let S, hist=[], busy=false;
-let OPT={level:2, arrows:"on", check:true, genFov:"strict", dropZone:"noenemy", genRotate:true, winbar:true};
+let OPT={level:2, arrows:"on", check:true, genFov:"strict", dropZone:"noenemy", genRotate:true, winbar:true, sound:"on"};
 function fresh(){
   return {phase:"setup",board:new Uint8Array(81),hand:[[0,0,0,0],[0,0,0,0]],
     sel:null,armed:null,dropArmed:null,pendingDrop:null,
@@ -816,7 +823,13 @@ function pushHist(){
     t:S.turn,l:S.log.slice(),m:S.move,ls:S.last,
     pc:Object.assign({},S.posCount),pl:S.plies.slice()});
 }
-function endWin(w,by){S.winner=w;S.winBy=by;render()}
+function endWin(w,by){
+  S.winner=w;S.winBy=by;
+  if(S.drill==null){
+    if(w<0) SFX.draw(); else if(w===HUMAN) SFX.win(); else SFX.lose();
+  }
+  render();
+}
 /* 詰みのあと、実際に総大将を討ち取るところまで見せる */
 function finishByCapture(loser){
   const winner=1-loser, g=genPos(S.board,loser);
@@ -850,6 +863,7 @@ function performMove(from,to,face){
     note=`${KANJI[dT(q)]}を取る（${m?m.why:""}）`;
   }
   S.board[to]=enc(owner,t,face); S.board[from]=0; S.last=[from,to];
+  if(q) SFX.capture(); else SFX.move();
   S.log.unshift(`<b>${S.move}.</b> ${owner===0?"▲":"△"}${SQ(to)}${KANJI[t]}${note?" "+note:""}`);
   if(owner===CPU){
     S.enemyMove = q
@@ -865,6 +879,7 @@ function performRotate(idx,dir){
   pushHist();
   const c=S.board[idx];
   S.board[idx]=enc(dO(c),dT(c),dir); S.last=[idx,idx];
+  SFX.turn();
   S.log.unshift(`<b>${S.move}.</b> ${S.turn===0?"▲":"△"}${SQ(idx)}${KANJI[dT(c)]} ${ARROW[dir]}へ向き変え`);
   if(S.turn===CPU){
     S.enemyMove=`<b>${SQ(idx)}</b> の ${KANJI[dT(c)]} が ${ARROW[dir]} へ向き直った`;
@@ -876,6 +891,7 @@ function performDrop(t,to,face){
   pushHist();
   const owner=S.turn;
   S.board[to]=enc(owner,t,face); S.hand[owner][t]--; S.last=[to,to];
+  SFX.drop();
   S.log.unshift(`<b>${S.move}.</b> ${owner===0?"▲":"△"}${SQ(to)}${KANJI[t]} ${ARROW[face]}向きで打つ`);
   if(owner===CPU){
     S.enemyMove=`<b>${SQ(to)}</b> へ ${KANJI[t]} を ${ARROW[face]} 向きで打たれた`;
@@ -885,8 +901,10 @@ function performDrop(t,to,face){
 }
 function endTurn(){
   S.move++; S.turn^=1; S.sel=null; S.dropArmed=null; S.pendingDrop=null;
-  if(S.enemyMove && OPT.check && S.turn===HUMAN && inCheck(S.board,HUMAN))
+  if(S.enemyMove && OPT.check && S.turn===HUMAN && inCheck(S.board,HUMAN)){
     S.enemyMove += ' 　<b>王手</b>';
+    setTimeout(()=>SFX.check(), 180);
+  }
   render();
   if(S.drill!=null){ drillJudge(); return }
   if(S.winner==null && S.phase==="play"){
@@ -1114,6 +1132,7 @@ function onCell(i){
     if(c||S.armed==null||!HOME(HUMAN).includes(y)) return;
     if(counts(HUMAN)[S.armed]>=COUNT[S.armed]) return;
     S.board[i]=enc(HUMAN,S.armed,0);
+    SFX.move();
     if(counts(HUMAN)[S.armed]>=COUNT[S.armed]) S.armed=null;
     return render();
   }
@@ -1128,14 +1147,15 @@ function onCell(i){
     const m=moves(S.board,S.sel).find(o=>o.to===i);
     if(m&&m.kind!=="block"){
       if(!isLegalHere({k:"m",from:S.sel,to:i,face:dF(S.board[S.sel])})){
+        SFX.blocked();
         S.log.unshift(`<b>—</b> ${SQ(i)}へは進めない：総大将が取られてしまう`);
         return render();
       }
       return performMove(S.sel,i,dF(S.board[S.sel]));
     }
-    if(m&&m.kind==="block"){S.log.unshift(`<b>—</b> ${SQ(i)}へは進めない：${m.why}`);return render()}
+    if(m&&m.kind==="block"){SFX.blocked();S.log.unshift(`<b>—</b> ${SQ(i)}へは進めない：${m.why}`);return render()}
   }
-  if(c&&dO(c)===HUMAN){S.sel=S.sel===i?null:i;S.dropArmed=null;S.pendingDrop=null;return render()}
+  if(c&&dO(c)===HUMAN){if(S.sel!==i)SFX.select();S.sel=S.sel===i?null:i;S.dropArmed=null;S.pendingDrop=null;return render()}
   S.sel=null;render();
 }
 document.getElementById("btnUndo").addEventListener("click",()=>{
@@ -1153,6 +1173,7 @@ const reset=()=>{S=fresh();hist=[];busy=false;placeCpu();render()};
 document.getElementById("btnReset").addEventListener("click",reset);
 document.getElementById("btnNew").addEventListener("click",reset);
 document.getElementById("optLevel").addEventListener("change",e=>{OPT.level=+e.target.value});
+document.getElementById("optSound").addEventListener("change",e=>{OPT.sound=e.target.value;if(OPT.sound==="on"){SFX.unlock();SFX.move()}});
 document.getElementById("optDrop").addEventListener("change",e=>{OPT.dropZone=e.target.value;render()});
 document.getElementById("optCheck").addEventListener("change",e=>{OPT.check=e.target.value==="on";render()});
 document.getElementById("optGenFov").addEventListener("change",e=>{OPT.genFov=e.target.value;render()});
@@ -1160,12 +1181,96 @@ document.getElementById("optArrow").addEventListener("change",e=>{OPT.arrows=e.t
 reset();
 showScreen('title');
 
+
+/* ================= 効果音（Web Audio で合成。音声ファイル不要） ================= */
+const SFX = (()=>{
+  let ctx=null, master=null, ready=false;
+  function init(){
+    if(ctx) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if(!AC) return;
+    ctx = new AC();
+    master = ctx.createGain();
+    master.gain.value = 0.9;
+    master.connect(ctx.destination);
+    ready = true;
+  }
+  /* iOSは操作起点でしか鳴らせないため、最初のタップで起こす */
+  function unlock(){
+    init();
+    if(ctx && ctx.state === "suspended") ctx.resume();
+  }
+  function noiseBuffer(sec){
+    const n = Math.floor(ctx.sampleRate*sec);
+    const buf = ctx.createBuffer(1, n, ctx.sampleRate);
+    const dat = buf.getChannelData(0);
+    for(let i=0;i<n;i++) dat[i] = Math.random()*2-1;
+    return buf;
+  }
+  /* 木を打つ音：ノイズをバンドパスで削り、急激に減衰させる */
+  function clack(freq=900, dur=0.13, vol=0.5, q=6){
+    if(!ready) return;
+    const t = ctx.currentTime;
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuffer(dur);
+    const bp = ctx.createBiquadFilter();
+    bp.type = "bandpass"; bp.frequency.value = freq; bp.Q.value = q;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    src.connect(bp); bp.connect(g); g.connect(master);
+    src.start(t); src.stop(t+dur);
+    /* 芯になる低音を少し重ねると木の重みが出る */
+    const o = ctx.createOscillator();
+    const og = ctx.createGain();
+    o.type = "triangle";
+    o.frequency.setValueAtTime(freq*0.42, t);
+    o.frequency.exponentialRampToValueAtTime(freq*0.26, t+dur*0.7);
+    og.gain.setValueAtTime(vol*0.5, t);
+    og.gain.exponentialRampToValueAtTime(0.0001, t+dur*0.8);
+    o.connect(og); og.connect(master);
+    o.start(t); o.stop(t+dur);
+  }
+  /* 澄んだ音：勝敗や王手の合図に使う */
+  function tone(freq, dur=0.2, vol=0.3, type="sine", delay=0){
+    if(!ready) return;
+    const t = ctx.currentTime + delay;
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    o.connect(g); g.connect(master);
+    o.start(t); o.stop(t+dur);
+  }
+  const on = ()=> OPT.sound !== "off" && ready;
+  return {
+    unlock,
+    tap(){      if(on()) clack(1500, 0.045, 0.12, 9) },
+    select(){   if(on()) clack(1800, 0.05, 0.14, 10) },
+    move(){     if(on()) clack(820, 0.14, 0.55, 5) },
+    capture(){  if(on()){ clack(560, 0.20, 0.75, 3); tone(180, 0.16, 0.18, "sawtooth", 0.02) } },
+    drop(){     if(on()) clack(1050, 0.12, 0.5, 6) },
+    turn(){     if(on()) clack(1300, 0.07, 0.22, 8) },
+    blocked(){  if(on()) tone(150, 0.12, 0.16, "square") },
+    check(){    if(on()){ tone(880,0.14,0.22,"triangle"); tone(1320,0.18,0.20,"triangle",0.09) } },
+    win(){      if(on()){ [523.25,659.25,783.99,1046.5].forEach((f,i)=>tone(f,0.5,0.22,"sine",i*0.11)) } },
+    lose(){     if(on()){ [440,392,329.63,261.63].forEach((f,i)=>tone(f,0.55,0.20,"sine",i*0.14)) } },
+    draw(){     if(on()){ tone(392,0.4,0.18); tone(392,0.4,0.14,"sine",0.18) } }
+  };
+})();
+/* 最初の操作で音を起こす */
+["pointerdown","touchstart","click"].forEach(ev=>
+  document.addEventListener(ev, ()=>SFX.unlock(), {once:true, passive:true}));
+
 /* ================= 画面管理 ================= */
 function showScreen(id){
   document.querySelectorAll(".screen").forEach(el=>el.classList.toggle("active",el.id==="scr-"+id));
   window.scrollTo(0,0);
 }
 document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=>{
+  SFX.unlock(); SFX.tap();
   const g=b.dataset.go;
   if(g==="level") renderLevels();
   if(g==="tutorial"){tutPage=0;renderTut()}
@@ -1189,6 +1294,7 @@ function renderLevels(){
     `<button class="lv" data-lv="${l.v}"><span class="nm">${l.nm}</span>`
     +`<span class="st">${l.st}</span></button>`).join("");
   el.querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{
+    SFX.tap();
     OPT.level=+b.dataset.lv;
     const sel=document.getElementById("optLevel"); if(sel) sel.value=String(OPT.level);
     reset(); showScreen("game");
@@ -1399,6 +1505,8 @@ function drillJudge(){
 }
 function renderDrill(){
   const el=document.getElementById("drillBar");
+  const iz=document.getElementById("infozone");
+  if(iz) iz.classList.toggle("hidden", S.drill!=null);
   if(!el) return;
   if(S.drill==null){el.classList.add("hidden");return}
   el.classList.remove("hidden");
@@ -1439,6 +1547,9 @@ function renderConfig(){
    <label>王手・詰みのルール<select id="cfgCheck">
      <option value="on" ${OPT.check?"selected":""}>あり</option>
      <option value="off" ${!OPT.check?"selected":""}>なし</option></select></label>
+   <label>効果音<select id="cfgSound">
+     <option value="on" ${OPT.sound==="on"?"selected":""}>あり</option>
+     <option value="off" ${OPT.sound==="off"?"selected":""}>なし</option></select></label>
    <label>勝率の表示<select id="cfgWin">
      <option value="on" ${OPT.winbar?"selected":""}>あり</option>
      <option value="off" ${!OPT.winbar?"selected":""}>なし</option></select></label>
@@ -1454,6 +1565,7 @@ function renderConfig(){
   sync("cfgDrop",v=>{OPT.dropZone=v;const s=document.getElementById("optDrop");if(s)s.value=v});
   sync("cfgFov",v=>{OPT.genFov=v;const s=document.getElementById("optGenFov");if(s)s.value=v});
   sync("cfgCheck",v=>{OPT.check=(v==="on");const s=document.getElementById("optCheck");if(s)s.value=v});
+  sync("cfgSound",v=>{OPT.sound=v;const el=document.getElementById("optSound");if(el)el.value=v;if(v==="on"){SFX.unlock();SFX.move()}});
   sync("cfgWin",v=>{OPT.winbar=(v==="on")});
   sync("cfgRot",v=>{OPT.genRotate=(v==="on")});
   sync("cfgArrow",v=>{OPT.arrows=v;const s=document.getElementById("optArrow");if(s)s.value=v});
