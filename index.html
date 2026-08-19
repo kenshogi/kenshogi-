@@ -354,7 +354,7 @@ button.big{width:100%;padding:14px;font-size:15px;letter-spacing:.08em}
       <tr><td>相手だけが自分を見ている</td><td><b>取れない</b></td></tr>
     </table>
     <b>じゃんけん</b>：愚＞千＞波＞愚。同種はあいこで取れない。<br><b>総大将</b>：目の前の直線しか見えず、<b>見えている相手しか討てない</b>。正面で見合った相手とは互いに討てない。横と背後から討たれる。<br>
-    <b>勝敗</b>：相手の総大将を取る／<b>相手の総大将以外を全滅させる</b>（盤上にも持ち駒にも一枚も残っていない状態）。<br>
+    <b>勝敗</b>：相手の総大将を詰める／<b>相手の総大将以外を全滅させる</b>。<br>
     <b>持ち駒</b>：取った駒（総大将除く）は<b>敵陣以外</b>の空きマスに<b>向きを選んで</b>打てる。<br>
     <b>王手</b>：総大将が次に取られる状態にされたら、それを解消する手しか指せない。解消できなければ<b>詰み</b>で負け。逃げる・攻め手を取る・割り込む他に、<b>総大将の向きを変えて睨み返す</b>受けがある（見合えばじゃんけんとなり総大将は無敵）。<br><b>手番</b>：移動／向き変え（攻撃不可）／持ち駒を打つ、のいずれか。待機はできない。
   </div></details>
@@ -374,10 +374,18 @@ button.big{width:100%;padding:14px;font-size:15px;letter-spacing:.08em}
           <option value="5">名人　6手読み・最善のみ</option>
         </select>
       </label>
-      <label>持ち駒を打てる範囲
+      <label>持ち駒
         <select id="optDrop">
-          <option value="noenemy" selected>敵陣以外</option>
-          <option value="any">盤上どこでも</option>
+          <option value="any" selected>盤上どこでも打てる</option>
+          <option value="noenemy">敵陣以外に打てる</option>
+          <option value="none">使えない（取った駒は戻らない）</option>
+        </select>
+      </label>
+      <label>打つときの向き
+        <select id="optDropFace">
+          <option value="front" selected>前向き固定</option>
+          <option value="enemyfront">敵陣では前向き</option>
+          <option value="free">自由に選べる</option>
         </select>
       </label>
       <label>効果音
@@ -457,7 +465,7 @@ function rotVec(dx,dy,face){
 
 /* ================= 状態 ================= */
 let S, hist=[], busy=false;
-let OPT={level:2, arrows:"on", check:true, genFov:"strict", dropZone:"noenemy", genRotate:true, winbar:true, sound:"on"};
+let OPT={level:2, arrows:"on", check:true, genFov:"strict", dropZone:"any", dropFace:"front", genRotate:true, winbar:true, sound:"on"};
 function fresh(){
   return {phase:"setup",board:new Uint8Array(81),hand:[[0,0,0,0],[0,0,0,0]],
     sel:null,armed:null,dropArmed:null,pendingDrop:null,
@@ -530,7 +538,18 @@ function moves(b,from){
   }
   return out;
 }
+/* 打つときに選べる向き。"free"=4方向 / "front"=前だけ / "enemyfront"=敵陣なら前だけ */
+function dropFaces(owner, to){
+  const fwd = owner===0?0:2;
+  if(OPT.dropFace==="front") return [fwd];
+  if(OPT.dropFace==="enemyfront"){
+    const [,y]=XY(to);
+    if(HOME(1-owner).includes(y)) return [fwd];
+  }
+  return [0,1,2,3];
+}
 function dropZones(b,owner){
+  if(OPT.dropZone==="none") return [];
   const cells=[];
   for(let i=0;i<81;i++){
     if(b[i]) continue;
@@ -577,7 +596,7 @@ function actions(b,hand,owner){
     }
     for(const t of [GU,CH,PA]){
       if(!hand[owner][t]) continue;
-      for(const to of useZones) for(let d=0;d<4;d++) out.push({k:"d",t,to,face:d});
+      for(const to of useZones) for(const d of dropFaces(owner,to)) out.push({k:"d",t,to,face:d});
     }
   }
   return out;
@@ -588,7 +607,7 @@ function apply(b,hand,owner,a){
   const c=nb[a.from];
   if(a.k==="r"){nb[a.from]=enc(dO(c),dT(c),a.dir);return {b:nb,hand:nh}}
   const q=nb[a.to];
-  if(q){const cap=dT(q); if(cap!==GEN) nh[owner][cap]++}
+  if(q&&OPT.dropZone!=="none"){const cap=dT(q); if(cap!==GEN) nh[owner][cap]++}
   nb[a.to]=enc(dO(c),dT(c),a.face); nb[a.from]=0;
   return {b:nb,hand:nh};
 }
@@ -859,7 +878,7 @@ function performMove(from,to,face){
   const m=moves(S.board,from).find(o=>o.to===to);
   let note="";
   if(q){
-    if(dT(q)!==GEN) S.hand[owner][dT(q)]++;
+    if(dT(q)!==GEN && OPT.dropZone!=="none") S.hand[owner][dT(q)]++;
     note=`${KANJI[dT(q)]}を取る（${m?m.why:""}）`;
   }
   S.board[to]=enc(owner,t,face); S.board[from]=0; S.last=[from,to];
@@ -1007,7 +1026,7 @@ function renderStatus(){
     H.textContent=`${SQ(S.pendingDrop.to)}へ打つ${KANJI[S.pendingDrop.t]}の向き`;
   }else if(S.dropArmed!=null){
     M.textContent=`${KANJI[S.dropArmed]}を打つ`;
-    H.textContent=OPT.dropZone==="any"?"打つマスをタップ（盤上どこでも）":"打つマスをタップ（敵陣以外）";
+    H.textContent=(OPT.dropZone==="any"?"打つマスをタップ（盤上どこでも）":"打つマスをタップ（敵陣以外）")+(OPT.dropFace==="front"?"・前向き":"");
   }else{
     const ck=OPT.check&&inCheck(S.board,S.turn);
     M.innerHTML=(S.turn===HUMAN?"あなたの手番":"コンピュータの手番")
@@ -1031,8 +1050,11 @@ function renderHands(){
     }
     return html;
   };
-  document.getElementById("hand1").innerHTML=mk(CPU);
-  document.getElementById("hand0").innerHTML=mk(HUMAN);
+  const h1=document.getElementById("hand1"), h0=document.getElementById("hand0");
+  if(OPT.dropZone==="none"){ h1.style.display="none"; h0.style.display="none"; return }
+  h1.style.display=""; h0.style.display="";
+  h1.innerHTML=mk(CPU);
+  h0.innerHTML=mk(HUMAN);
   document.querySelectorAll("#hand0 .hand-slot").forEach(b=>b.addEventListener("click",()=>{
     if(b.disabled) return;
     const t=+b.dataset.t;
@@ -1064,7 +1086,7 @@ function renderRail(){
     const lab=document.createElement("div"); lab.className="rail-label";
     lab.textContent=`${SQ(S.pendingDrop.to)}へ${FULL[S.pendingDrop.t]}を打つ｜どちらを向く？`;
     el.appendChild(lab);
-    for(let d=0;d<4;d++){
+    for(const d of dropFaces(HUMAN,S.pendingDrop.to)){
       const b=document.createElement("button");
       b.className="arrow"; b.textContent=ARROW[d];
       b.addEventListener("click",()=>{
@@ -1140,6 +1162,15 @@ function onCell(i){
   if(S.dropArmed!=null){
     if(c) return;
     if(!dropZones(S.board,HUMAN).includes(i)) return;
+    const faces=dropFaces(HUMAN,i);
+    if(faces.length===1){
+      if(!isLegalHere({k:"d",t:S.dropArmed,to:i,face:faces[0]})){
+        SFX.blocked();
+        S.log.unshift("<b>—</b> そこへ打つと総大将が取られてしまう");
+        return render();
+      }
+      return performDrop(S.dropArmed,i,faces[0]);
+    }
     S.pendingDrop={t:S.dropArmed,to:i};
     return render();
   }
@@ -1175,6 +1206,7 @@ document.getElementById("btnNew").addEventListener("click",reset);
 document.getElementById("optLevel").addEventListener("change",e=>{OPT.level=+e.target.value});
 document.getElementById("optSound").addEventListener("change",e=>{OPT.sound=e.target.value;if(OPT.sound==="on"){SFX.unlock();SFX.move()}});
 document.getElementById("optDrop").addEventListener("change",e=>{OPT.dropZone=e.target.value;render()});
+document.getElementById("optDropFace").addEventListener("change",e=>{OPT.dropFace=e.target.value;render()});
 document.getElementById("optCheck").addEventListener("change",e=>{OPT.check=e.target.value==="on";render()});
 document.getElementById("optGenFov").addEventListener("change",e=>{OPT.genFov=e.target.value;render()});
 document.getElementById("optArrow").addEventListener("change",e=>{OPT.arrows=e.target.value;render()});
@@ -1538,7 +1570,7 @@ function renderConfig(){
   el.innerHTML=`
    <label>コンピュータの強さ<select id="cfgLevel">${
      LEVEL_INFO.map(l=>`<option value="${l.v}" ${OPT.level===l.v?"selected":""}>${l.nm}</option>`).join("")}</select></label>
-   <label>持ち駒を打てる範囲<select id="cfgDrop">
+   <label>持ち駒<select id="cfgDrop">
      <option value="any" ${OPT.dropZone==="any"?"selected":""}>盤上どこでも</option>
      <option value="noenemy" ${OPT.dropZone==="noenemy"?"selected":""}>敵陣以外</option></select></label>
    <label>総大将の視野<select id="cfgFov">
@@ -1563,6 +1595,7 @@ function renderConfig(){
   const sync=(id,fn)=>document.getElementById(id).addEventListener("change",e=>{fn(e.target.value);render()});
   sync("cfgLevel",v=>{OPT.level=+v;const s=document.getElementById("optLevel");if(s)s.value=v});
   sync("cfgDrop",v=>{OPT.dropZone=v;const s=document.getElementById("optDrop");if(s)s.value=v});
+  sync("cfgDropFace",v=>{OPT.dropFace=v;const s=document.getElementById("optDropFace");if(s)s.value=v});
   sync("cfgFov",v=>{OPT.genFov=v;const s=document.getElementById("optGenFov");if(s)s.value=v});
   sync("cfgCheck",v=>{OPT.check=(v==="on");const s=document.getElementById("optCheck");if(s)s.value=v});
   sync("cfgSound",v=>{OPT.sound=v;const el=document.getElementById("optSound");if(el)el.value=v;if(v==="on"){SFX.unlock();SFX.move()}});
