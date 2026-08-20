@@ -167,13 +167,21 @@ select{font:inherit;font-size:12px;background:var(--lacquer-2);color:var(--text)
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 
 /* ---- 勝率バー ---- */
-#winbar{width:min(100%,56vh);margin:2px auto 8px}
+#winbar{width:min(100%,56vh);margin:4px auto 9px}
 #winbar.hidden{display:none}
-.wb-track{height:7px;background:#4d8a7e;overflow:hidden;border:1px solid var(--brass-dim)}
-.wb-fill{height:100%;background:linear-gradient(90deg,#e9dfc6,#d9cbab);width:50%;transition:width .35s ease}
-.wb-txt{display:flex;justify-content:space-between;font-size:11px;font-family:ui-monospace,monospace;
-  color:var(--text-dim);margin-top:3px}
-.wb-txt b{color:var(--ivory);font-weight:500}
+.wb-track{position:relative;height:15px;background:linear-gradient(180deg,#5da093,#417f73);
+  overflow:hidden;border:1px solid var(--brass);box-shadow:inset 0 1px 3px rgba(0,0,0,.35)}
+.wb-fill{height:100%;background:linear-gradient(180deg,#f4ead2,#d3c49f);width:50%;
+  transition:width .45s cubic-bezier(.4,0,.2,1);box-shadow:1px 0 4px rgba(0,0,0,.45)}
+/* 中央＝互角の目印 */
+.wb-track::after{content:"";position:absolute;left:50%;top:0;bottom:0;width:1px;
+  background:rgba(16,23,40,.5)}
+.wb-txt{display:flex;justify-content:space-between;align-items:baseline;
+  font-size:11px;letter-spacing:.08em;font-family:ui-monospace,monospace;
+  color:var(--text-dim);margin-top:4px}
+.wb-txt b{font-weight:700;font-size:15px;font-variant-numeric:tabular-nums}
+.wb-txt .me b{color:var(--ivory)}
+.wb-txt .op b{color:var(--verdigris)}
 
 /* ---- 練習 ---- */
 #drillBar{width:min(100%,56vh);margin:8px auto 0;padding:10px 12px;
@@ -956,7 +964,8 @@ function render(){
       wb.classList.remove("hidden");
       document.getElementById("wbFill").style.width=(r*100).toFixed(0)+"%";
       document.getElementById("wbTxt").innerHTML=
-        `<span>あなた <b>${Math.round(r*100)}%</b></span><span><b>${Math.round((1-r)*100)}%</b> 相手</span>`;
+        `<span class="me">あなた <b>${Math.round(r*100)}%</b></span>`
+       +`<span class="op"><b>${Math.round((1-r)*100)}%</b> 相手</span>`;
     }else wb.classList.add("hidden");
   }
   renderDrill();
@@ -1369,10 +1378,13 @@ ${mini({n:5,p:[{x:2,y:2,o:1,t:GEN,f:D},{x:1,y:2,o:0,t:GU,f:R}],m:[{x:2,y:2,k:"ok
 
 {t:"取った駒は味方になる",h:()=>`
 <p>討ち取った駒（総大将を除く）は<b>持ち駒</b>になり、自分の駒として使えます。</p>
-<p>持ち駒は<b class="em">盤上のどこにでも</b>打てます。しかも<b>向きを自由に決められる</b>ので、敵の背後にいきなり配置できます。</p>
-${mini({n:5,p:[{x:2,y:1,o:1,t:CH,f:D},{x:2,y:0,o:0,t:PA,f:D}],m:[{x:2,y:0,k:"ok"}],
- cap:"千の真後ろに波を打ち込む。次の手番で討てる"})}
-<p>操作は<b>持ち駒を選ぶ → 打つマスを選ぶ → 向きを選ぶ</b>の3手順です。</p>`},
+<p>持ち駒は<b class="em">盤上のどこにでも</b>打てます。ただし打った駒は<b class="em">必ず前を向きます</b>。背後に回り込ませて一方的に討つ、という打ち方はできません。</p>
+${mini({n:5,p:[{x:2,y:1,o:1,t:CH,f:U},{x:2,y:2,o:0,t:PA,f:U}],m:[{x:2,y:1,k:"ok"}],
+ cap:"背を向けている千の後ろに打つ。次の手番で討てる"})}
+<p>相手がこちらを向いていれば、打った駒とは<b>正面で見合う</b>形になり、じゃんけんで決まります。</p>
+${mini({n:5,p:[{x:2,y:1,o:1,t:CH,f:D},{x:2,y:2,o:0,t:GU,f:U}],m:[{x:2,y:1,k:"ok"}],
+ cap:"見合えばじゃんけん。愚は千に勝つので討てる"})}
+<p>操作は<b>持ち駒を選ぶ → 打つマスを選ぶ</b>の2手順です。</p>`},
 
 {t:"王手と、4つの受け方",h:()=>`
 <p>次の手番で総大将が討たれる状態を<b class="em">王手</b>といいます。王手をかけられたら、<b>それを消す手しか指せません</b>。消せなければ<b>詰み</b>で負けです。</p>
@@ -1392,7 +1404,7 @@ ${mini({n:5,p:[{x:2,y:2,o:1,t:GEN,f:U},{x:2,y:1,o:0,t:GU,f:D}],m:[{x:2,y:2,k:"ng
 <table>
 <tr><td><b>移動</b></td><td>動かす。向きは変わらない</td></tr>
 <tr><td><b>向き変え</b></td><td>その場で向き直る。攻撃はできない</td></tr>
-<tr><td><b>打つ</b></td><td>持ち駒を盤上に置く</td></tr>
+<tr><td><b>打つ</b></td><td>持ち駒を盤上に置く。必ず前向き</td></tr>
 </table>
 <h3>勝敗</h3>
 <table>
@@ -1445,7 +1457,7 @@ const DRILLS=[
  goal(){ return S.hand[0][CH]>=1 }},
 
 {t:"持ち駒を打つ",
- msg:"相手の <b>千</b> の背後 <b>5四</b> に、持ち駒の <b>波</b> を <b>↑向き</b> で打とう。次の手番で討ち取れる形になる。",
+ msg:"相手の <b>千</b> は背を向けている。その後ろ <b>5四</b> に持ち駒の <b>波</b> を打とう。打った駒は自動で <b>↑向き</b> になり、次の手番で討ち取れる。",
  setup(){
    S.hand[0][PA]=1;
    S.board[IDX(4,3)]=enc(1,CH,0);
