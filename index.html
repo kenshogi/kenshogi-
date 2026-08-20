@@ -17,13 +17,16 @@
   --card:#ffffff;       /* パネル・ボタン */
   --board:#ffe7ae;      /* 盤面：バターイエロー */
   /* 陣営 */
-  --p0:#ff6a4d;         /* 自分：トマト */
-  --p1:#3e78e8;         /* 相手：ブルーベリー */
-  --on-piece:#ffffff;   /* 駒の上の絵 */
+  --p0:#241d2e;         /* 自分の駒：黒 */
+  --p0-ic:#ffd23d;      /* 自分のアイコン：黄 */
+  --p1:#ffffff;         /* 相手の駒：白 */
+  --p1-ic:#e5352f;      /* 相手のアイコン：赤 */
   /* 機能色 */
   --lemon:#ffc42e;      /* ハイライト・視線 */
   --lemon-dim:#e8a900;
   --alert:#e5357a;      /* 取れる・警告 */
+  --hl:#2f7fe8;         /* 選択・移動先などの操作色 */
+  --grid:rgba(53,41,75,.5); /* 碁盤の線 */
   --mint:#22b573;       /* 成功 */
   /* 文字 */
   --strong:#35294b;     /* 見出し・強調 */
@@ -48,7 +51,7 @@ body{background:radial-gradient(120% 90% at 50% -10%,#f3f7ff 0%,var(--sky) 55%);
   border-bottom:1px solid var(--line);padding:6px 2px;margin-bottom:6px;min-height:40px}
 .seat{width:20px;height:20px;flex:none;clip-path:polygon(50% 0%,88% 20%,100% 100%,0% 100%,12% 20%)}
 .seat.s0{background:var(--p0)}
-.seat.s1{background:var(--p1);transform:rotate(180deg)}
+.seat.s1{background:var(--p1);transform:rotate(180deg);box-shadow:inset 0 0 0 1.5px var(--p1-ic)}
 .status-main{font-size:13.5px;color:var(--strong)}
 .status-sub{font-size:11.5px;color:var(--text-dim);margin-left:auto;text-align:right;font-family:ui-monospace,monospace}
 .thinking{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--alert);
@@ -65,9 +68,13 @@ body{background:radial-gradient(120% 90% at 50% -10%,#f3f7ff 0%,var(--sky) 55%);
   transition:border-color .12s,background .12s}
 .hand-slot.empty{opacity:.28;cursor:default}
 .hand-slot.has{border-color:var(--lemon-dim);background:#fff8e2}
-.hand-slot.h0 .kj{color:var(--p0)}
-.hand-slot.h1 .kj{color:var(--p1)}
-.hand-slot .kj{display:flex;align-items:center}
+.hand-slot.h0 .kj{color:var(--p0-ic)}
+.hand-slot.h1 .kj{color:var(--p1-ic)}
+.hand-slot .kj{display:flex;align-items:center;justify-content:center;
+  width:26px;height:26px;border-radius:7px;flex:none}
+.hand-slot .kj .ic-s{width:18px;height:18px}
+.hand-slot.h0 .kj{background:var(--p0)}
+.hand-slot.h1 .kj{background:var(--p1);box-shadow:inset 0 0 0 1.5px rgba(53,41,75,.35)}
 .hand-slot .cnt{font-size:11.5px;font-family:ui-monospace,monospace;color:var(--text)}
 .hand-slot.has .cnt{color:var(--strong)}
 .hand-slot.on{border-color:var(--lemon-dim);background:rgba(255,196,46,.5)}
@@ -79,36 +86,38 @@ body{background:radial-gradient(120% 90% at 50% -10%,#f3f7ff 0%,var(--sky) 55%);
 .board-frame{width:min(100%,56vh);margin:0 auto;padding:7px;background:linear-gradient(160deg,#ffd982,#ffc75c);
   border:2px solid var(--lemon-dim);border-radius:16px;box-shadow:0 8px 0 #e0a52f,0 14px 26px rgba(53,41,75,.18)}
 .board{display:grid;grid-template-columns:repeat(9,1fr);aspect-ratio:1;width:100%;
-  background:var(--board);border:2px solid var(--lemon-dim);border-radius:9px;overflow:hidden;position:relative}
-.cell{position:relative;border-right:1px solid var(--line);border-bottom:1px solid var(--line);
+  background:var(--board);border:2px solid var(--grid);position:relative}
+.cell{position:relative;border-right:1px solid var(--grid);border-bottom:1px solid var(--grid);
   display:flex;align-items:center;justify-content:center;padding:0;background:none;cursor:pointer}
 .cell:nth-child(9n){border-right:none}
 .cell:nth-child(n+73){border-bottom:none}
-.cell.zone-me{background:rgba(255,106,77,.1)}
-.cell.star::after{content:"";position:absolute;left:-2.5px;top:-2.5px;width:5px;height:5px;
-  border-radius:50%;background:var(--lemon);opacity:.55;z-index:2}
+.cell.zone-me{background:rgba(36,29,46,.07)}
+.cell.star::after{content:"";position:absolute;left:-3px;top:-3px;width:6px;height:6px;
+  border-radius:50%;background:var(--grid);z-index:2}
 .cell:focus-visible{outline:2px solid var(--lemon);outline-offset:-2px;z-index:6}
-.cell.sel{background:rgba(255,196,46,.55)}
-.cell.drop-target{background:rgba(62,120,232,.12)}
-.cell.last{box-shadow:inset 0 0 0 2px rgba(255,196,46,.9)}
+.cell.sel{background:rgba(47,127,232,.3)}
+.cell.drop-target{background:rgba(47,127,232,.14)}
+.cell.last{box-shadow:inset 0 0 0 2px rgba(47,127,232,.85)}
 
 .mk{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   pointer-events:none;z-index:5}
-.mk-move::before{content:"";width:32%;height:32%;border-radius:50%;background:var(--lemon);box-shadow:0 2px 0 var(--lemon-dim)}
+.mk-move::before{content:"";width:32%;height:32%;border-radius:50%;background:var(--hl);box-shadow:0 2px 0 #1c5cb5}
 .mk-take::before{content:"";position:absolute;inset:4%;border:3px solid var(--alert);border-radius:7px}
 .mk-block::before{content:"×";
   width:62%;height:62%;display:flex;align-items:center;justify-content:center;
   color:#fff;font-size:min(4.6vw,19px);font-weight:700;line-height:1;
   background:var(--alert);border:2px solid #fff;border-radius:50%;
   box-shadow:0 2px 4px rgba(53,41,75,.3)}
-.mk-drop::before{content:"";width:38%;height:38%;border:2px dashed var(--p1);border-radius:6px;opacity:.75}
+.mk-drop::before{content:"";width:38%;height:38%;border:2px dashed var(--hl);border-radius:6px}
 
 .koma{position:relative;width:88%;height:88%;
   clip-path:polygon(50% 0%,86% 19%,100% 100%,0% 100%,14% 19%);
-  display:flex;align-items:center;justify-content:center;transition:transform .16s ease;z-index:3}
-.koma.p0{background:linear-gradient(180deg,#ff8468,#f2543a);color:var(--on-piece)}
-.koma.p1{background:linear-gradient(180deg,#5f92f5,#2f63d4);color:var(--on-piece)}
-.koma.gen{box-shadow:inset 0 0 0 3px var(--lemon)}
+  display:flex;align-items:center;justify-content:center;transition:transform .16s ease;z-index:3;
+  filter:drop-shadow(0 2px 2px rgba(53,41,75,.4))}
+.koma.p0{background:linear-gradient(180deg,#3b3149,#241d2e);color:var(--p0-ic)}
+.koma.p1{background:linear-gradient(180deg,#ffffff,#f0ecf7);color:var(--p1-ic)}
+.koma.p1:not(.gen){box-shadow:inset 0 0 0 1.5px rgba(53,41,75,.35)}
+.koma.gen{box-shadow:inset 0 0 0 3px currentColor}
 .koma .glyph{width:100%;height:100%;position:relative;display:flex;align-items:center;justify-content:center}
 .koma .ic{position:absolute;top:25%;left:20%;width:60%;height:60%;fill:currentColor}
 .ic-s{width:19px;height:19px;fill:currentColor;display:block;flex:none}
@@ -118,10 +127,10 @@ body{background:radial-gradient(120% 90% at 50% -10%,#f3f7ff 0%,var(--sky) 55%);
 .f2{transform:rotate(180deg)}
 .f3{transform:rotate(270deg)}
 .arrows{position:absolute;inset:0;pointer-events:none}
-.arrows circle{fill:rgba(255,255,255,.85)}
+.arrows circle{fill:currentColor;opacity:.8}
 /* 視線を示す小さな目印（正面側の縁） */
 .eye{position:absolute;top:5%;left:50%;transform:translateX(-50%);
-  width:34%;height:7%;border-radius:3px;background:var(--lemon)}
+  width:34%;height:7%;border-radius:3px;background:currentColor}
 
 .rail{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-height:0}
 #dock{position:sticky;bottom:0;z-index:30;
@@ -144,8 +153,9 @@ button.arrow{min-width:42px;font-size:15px;padding:7px 0;flex:1}
 .rail-label{font-size:12px;color:var(--text-dim);width:100%;margin-bottom:-2px}
 
 .palette{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
-.pal{display:inline-flex;align-items:center;gap:5px}
-.pal .ic-s{width:17px;height:17px}
+.pal{display:inline-flex;align-items:center;gap:6px}
+.pal .ic-s{width:16px;height:16px;padding:3px;box-sizing:content-box;
+  border-radius:6px;background:var(--p0);color:var(--p0-ic)}
 .pal.on{border-color:var(--lemon-dim);background:var(--lemon);color:var(--strong)}
 .pal .n{font-family:ui-monospace,monospace;font-size:11px;color:var(--lemon);margin-left:4px}
 
@@ -165,7 +175,8 @@ details.panel>*:not(summary){margin-top:8px}
 .legend{display:flex;flex-wrap:wrap;gap:8px;font-size:12px;color:var(--text-dim);align-items:center}
 .legend i{font-style:normal;display:inline-flex;align-items:center;gap:5px;
   background:var(--card);border:2px solid var(--line);border-radius:10px;padding:4px 9px}
-.legend .ic-s{color:var(--p0)}
+.legend .ic-s{width:16px;height:16px;padding:3px;box-sizing:content-box;
+  border-radius:6px;background:var(--p0);color:var(--p0-ic)}
 .legend em{font-style:normal;color:var(--strong);font-weight:700;margin-right:6px}
 .legend .jk{background:var(--lemon);border-color:var(--lemon-dim);color:var(--strong);font-weight:700}
 .rules{font-size:12px;color:var(--text-dim);line-height:1.85}
@@ -188,9 +199,9 @@ select{font:inherit;font-size:12px;background:var(--card);color:var(--strong);
 /* ---- 勝率バー ---- */
 #winbar{width:min(100%,56vh);margin:4px auto 9px}
 #winbar.hidden{display:none}
-.wb-track{position:relative;height:16px;background:linear-gradient(180deg,#5f92f5,#2f63d4);
+.wb-track{position:relative;height:16px;background:linear-gradient(180deg,#f05a54,#d92a24);
   overflow:hidden;border:2px solid var(--strong);border-radius:9px;box-shadow:inset 0 1px 3px rgba(0,0,0,.2)}
-.wb-fill{height:100%;background:linear-gradient(180deg,#ff8468,#f2543a);width:50%;
+.wb-fill{height:100%;background:linear-gradient(180deg,#3b3149,#241d2e);width:50%;
   transition:width .45s cubic-bezier(.4,0,.2,1)}
 /* 中央＝互角の目印 */
 .wb-track::after{content:"";position:absolute;left:50%;top:0;bottom:0;width:2px;
@@ -200,7 +211,7 @@ select{font:inherit;font-size:12px;background:var(--card);color:var(--strong);
   color:var(--text-dim);margin-top:4px}
 .wb-txt b{font-weight:700;font-size:15px;font-variant-numeric:tabular-nums}
 .wb-txt .me b{color:var(--p0)}
-.wb-txt .op b{color:var(--p1)}
+.wb-txt .op b{color:var(--p1-ic)}
 
 /* ---- 練習 ---- */
 #drillBar{width:min(100%,56vh);margin:8px auto 0;padding:11px 13px;
@@ -219,7 +230,7 @@ select{font:inherit;font-size:12px;background:var(--card);color:var(--strong);
   font-size:13px;color:var(--strong);line-height:1.5}
 #enemyMove b{color:var(--alert);font-weight:600}
 #enemyMove.hidden{display:none}
-.cell.last{box-shadow:inset 0 0 0 2px rgba(255,196,46,.9)}
+.cell.last{box-shadow:inset 0 0 0 2px rgba(47,127,232,.85)}
 .cell.enemylast{box-shadow:inset 0 0 0 3px var(--alert);animation:flash 1.1s ease-out 3;border-radius:4px}
 @keyframes flash{0%,100%{box-shadow:inset 0 0 0 3px rgba(229,53,122,.3)}
   50%{box-shadow:inset 0 0 0 3px rgba(229,53,122,1)}}
@@ -240,7 +251,7 @@ button.big{width:100%;padding:14px;font-size:15px;letter-spacing:.08em}
 .title-wrap{text-align:center;padding:calc(30px + env(safe-area-inset-top)) 18px calc(30px + env(safe-area-inset-bottom));max-width:380px;margin:0 auto}
 .title-mark{width:112px;height:112px;margin:0 auto 18px;display:flex;align-items:center;justify-content:center;
   clip-path:polygon(50% 0%,86% 19%,100% 100%,0% 100%,14% 19%);
-  background:linear-gradient(180deg,#ff8468,#f2543a);color:var(--on-piece);
+  background:linear-gradient(180deg,#3b3149,#241d2e);color:var(--p0-ic);
   filter:drop-shadow(0 8px 14px rgba(53,41,75,.28))}
 .title-main{font-family:"Hiragino Maru Gothic ProN","Yu Gothic",system-ui,sans-serif;font-size:38px;letter-spacing:.32em;
   margin:0 0 2px 0;color:var(--strong);font-weight:600;text-indent:.32em}
@@ -275,16 +286,16 @@ button.big{width:100%;padding:14px;font-size:15px;letter-spacing:.08em}
 
 /* ---- ミニ盤 ---- */
 .mini{display:grid;aspect-ratio:1;width:min(100%,250px);margin:12px auto 4px;
-  background:var(--board);border:1px solid var(--lemon-dim)}
-.mcell{position:relative;border-right:1px solid var(--line);border-bottom:1px solid var(--line);
+  background:var(--board);border:2px solid var(--grid)}
+.mcell{position:relative;border-right:1px solid var(--grid);border-bottom:1px solid var(--grid);
   display:flex;align-items:center;justify-content:center}
 .mcell:nth-last-child(-n+1){border-bottom:none}
-.mcell.ok::after{content:"";position:absolute;inset:8%;border:3px solid var(--lemon);border-radius:6px;z-index:6}
+.mcell.ok::after{content:"";position:absolute;inset:8%;border:3px solid var(--hl);border-radius:6px;z-index:6}
 .mcell.ng::after{content:"×";position:absolute;z-index:6;
   width:60%;height:60%;display:flex;align-items:center;justify-content:center;
   color:#fff;font-size:18px;font-weight:700;line-height:1;
   background:var(--alert);border:2px solid #fff;border-radius:50%}
-.mcell.dot::after{content:"";position:absolute;width:28%;height:28%;border-radius:50%;background:var(--lemon)}
+.mcell.dot::after{content:"";position:absolute;width:28%;height:28%;border-radius:50%;background:var(--hl)}
 .mcell.see{background:rgba(255,196,46,.4)}
 .mcell .koma{width:82%;height:82%}
 
@@ -413,10 +424,10 @@ const GEN=0,GU=1,CH=2,PA=3;
 const KANJI=["キング","グー","チョキ","パー"];
 /* 駒のアイコン。上向きに描き、駒ごと回転させることで向きを示す */
 const ICON_PATH=[
-  `<path d="M3 9.4 6.7 12.7 12 5.6l5.3 7.1L21 9.4l-1.3 7.8H4.3L3 9.4z"/><rect x="4.2" y="18.3" width="15.6" height="2.7" rx="1.35"/><circle cx="3" cy="8.2" r="1.7"/><circle cx="21" cy="8.2" r="1.7"/><circle cx="12" cy="4.2" r="1.9"/>`,
-  `<rect x="4.4" y="9.6" width="15.2" height="10.2" rx="4.4"/><circle cx="7.7" cy="9.8" r="2.7"/><circle cx="12" cy="9" r="3"/><circle cx="16.3" cy="9.8" r="2.7"/><rect x="1.9" y="12.3" width="4" height="5.2" rx="2"/>`,
-  `<rect x="4.4" y="11.8" width="15.2" height="8" rx="4"/><rect x="7" y="2.2" width="3.6" height="10.6" rx="1.8" transform="rotate(-15 8.8 7.5)"/><rect x="13.4" y="2.2" width="3.6" height="10.6" rx="1.8" transform="rotate(15 15.2 7.5)"/>`,
-  `<rect x="4.4" y="12.2" width="15.2" height="7.6" rx="3.8"/><rect x="2.8" y="6.4" width="3.2" height="8.2" rx="1.6" transform="rotate(-30 4.4 10.5)"/><rect x="6.3" y="4.2" width="3.2" height="9.8" rx="1.6" transform="rotate(-14 7.9 9.1)"/><rect x="10.4" y="3.3" width="3.2" height="10.6" rx="1.6"/><rect x="14.5" y="4.2" width="3.2" height="9.8" rx="1.6" transform="rotate(14 16.1 9.1)"/><rect x="18" y="6.4" width="3.2" height="8.2" rx="1.6" transform="rotate(30 19.6 10.5)"/>`
+  `<path d="M3.2 9.0 6.9 12.6 12 5.4l5.1 7.2 3.7-3.6-1.3 7.6H4.5L3.2 9z"/><circle cx="3.2" cy="7.4" r="1.9"/><circle cx="20.8" cy="7.4" r="1.9"/><circle cx="12" cy="3.8" r="2.1"/><rect x="4.3" y="18.0" width="15.4" height="2.9" rx="1.45"/>`,
+  `<path d="M3.4,11.6 C3.4,8.9 4.6,7.4 6.5,7.4 C8.4,7.4 9.5,8.8 9.5,11.0 C9.5,8.1 10.6,6.4 12.0,6.4 C13.4,6.4 14.5,8.1 14.5,11.0 C14.5,8.8 15.6,7.4 17.5,7.4 C19.4,7.4 20.6,8.9 20.6,11.6 L20.6,15.8 C20.6,18.3 18.6,20.3 16.1,20.3 L7.9,20.3 C5.4,20.3 3.4,18.3 3.4,15.8 Z"/>`,
+  `<rect x="6.0" y="1.6" width="3.2" height="12.0" rx="1.6" transform="rotate(-23 7.6 7.6)"/><rect x="14.8" y="1.6" width="3.2" height="12.0" rx="1.6" transform="rotate(23 16.4 7.6)"/><rect x="4.8" y="11.6" width="14.4" height="8.2" rx="4.0"/>`,
+  `<rect x="1.6" y="9.6" width="2.9" height="7.4" rx="1.45" transform="rotate(-42 3.05 13.3)"/><rect x="5.9" y="4.0" width="2.9" height="10.6" rx="1.45" transform="rotate(-13 7.35 9.3)"/><rect x="9.7" y="2.6" width="2.9" height="12.0" rx="1.45"/><rect x="13.5" y="3.8" width="2.9" height="10.8" rx="1.45" transform="rotate(12 14.95 9.2)"/><rect x="17.2" y="6.4" width="2.9" height="8.6" rx="1.45" transform="rotate(27 18.65 10.7)"/><rect x="4.9" y="13.0" width="14.2" height="6.8" rx="3.4"/>`
 ];
 function icon(t,cls){return `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON_PATH[t]}</svg>`}
 const FULL=["キング","グー","チョキ","パー"];
