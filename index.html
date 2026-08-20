@@ -167,7 +167,7 @@ select{font:inherit;font-size:12px;background:var(--lacquer-2);color:var(--text)
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 
 /* ---- 勝率バー ---- */
-#winbar{width:min(100%,56vh);margin:8px auto 0}
+#winbar{width:min(100%,56vh);margin:2px auto 8px}
 #winbar.hidden{display:none}
 .wb-track{height:7px;background:#4d8a7e;overflow:hidden;border:1px solid var(--brass-dim)}
 .wb-fill{height:100%;background:linear-gradient(90deg,#e9dfc6,#d9cbab);width:50%;transition:width .35s ease}
@@ -325,9 +325,9 @@ button.big{width:100%;padding:14px;font-size:15px;letter-spacing:.08em}
     <div class="status-sub" id="stMove"></div>
   </div>
 
+  <div id="winbar" class="hidden"><div class="wb-track"><div class="wb-fill" id="wbFill"></div></div><div class="wb-txt" id="wbTxt"></div></div>
   <div class="hand h1" id="hand1"></div>
   <div class="board-frame"><div class="board" id="board"></div></div>
-  <div id="winbar" class="hidden"><div class="wb-track"><div class="wb-fill" id="wbFill"></div></div><div class="wb-txt" id="wbTxt"></div></div>
   <div id="drillBar" class="hidden"></div>
   <div id="enemyMove" class="hidden"></div>
   <div class="hand h0" id="hand0"></div>
@@ -344,6 +344,22 @@ button.big{width:100%;padding:14px;font-size:15px;letter-spacing:.08em}
   </div>
 
   <div class="infozone" id="infozone">
+  <details class="panel"><summary>操作</summary>
+    <div class="rail" style="min-height:0">
+      <button id="btnUndo">1手戻す</button>
+      <button id="btnReset">最初から</button>
+      <button id="btnToTitle">タイトルへ</button>
+    </div>
+  </details>
+
+  <details class="panel"><summary>棋譜</summary><div class="log" id="log">配置から始める。</div></details>
+
+  <details class="panel"><summary>設定</summary>
+    <div class="opts" id="gameOpts"></div>
+  </details>
+
+  <details class="panel"><summary>駒</summary><div class="legend" id="legend"></div></details>
+
   <details class="panel"><summary>ルール要旨</summary><div class="rules">
     駒は人間と同じで<b>正面にしか目がない</b>。<b>総大将は目の前の直線だけ</b>しか見ていない（周囲は部下任せ）。相手が自分の<b>正面側（斜め前を含む）</b>にいれば「見えている」。<br>
     <table>
@@ -355,74 +371,9 @@ button.big{width:100%;padding:14px;font-size:15px;letter-spacing:.08em}
     </table>
     <b>じゃんけん</b>：愚＞千＞波＞愚。同種はあいこで取れない。<br><b>総大将</b>：目の前の直線しか見えず、<b>見えている相手しか討てない</b>。正面で見合った相手とは互いに討てない。横と背後から討たれる。<br>
     <b>勝敗</b>：相手の総大将を詰める／<b>相手の総大将以外を全滅させる</b>。<br>
-    <b>持ち駒</b>：取った駒（総大将除く）は<b>敵陣以外</b>の空きマスに<b>向きを選んで</b>打てる。<br>
+    <b>持ち駒</b>：取った駒（総大将除く）は<b>盤上のどこでも</b>空きマスに打てる。打った駒は<b>必ず前を向く</b>（設定で変更可）。<br>
     <b>王手</b>：総大将が次に取られる状態にされたら、それを解消する手しか指せない。解消できなければ<b>詰み</b>で負け。逃げる・攻め手を取る・割り込む他に、<b>総大将の向きを変えて睨み返す</b>受けがある（見合えばじゃんけんとなり総大将は無敵）。<br><b>手番</b>：移動／向き変え（攻撃不可）／持ち駒を打つ、のいずれか。待機はできない。
   </div></details>
-
-  <details class="panel"><summary>駒</summary><div class="legend" id="legend"></div></details>
-
-  <details class="panel"><summary>棋譜</summary><div class="log" id="log">配置から始める。</div></details>
-
-  <details class="panel"><summary>設定</summary>
-    <div class="opts">
-      <label>コンピュータの強さ
-        <select id="optLevel">
-          <option value="1">入門　1手読み</option>
-          <option value="2" selected>初級　2手読み</option>
-          <option value="3">中級　3手読み</option>
-          <option value="4">上級　4手読み</option>
-          <option value="5">名人　6手読み・最善のみ</option>
-        </select>
-      </label>
-      <label>持ち駒
-        <select id="optDrop">
-          <option value="any" selected>盤上どこでも打てる</option>
-          <option value="noenemy">敵陣以外に打てる</option>
-          <option value="none">使えない（取った駒は戻らない）</option>
-        </select>
-      </label>
-      <label>打つときの向き
-        <select id="optDropFace">
-          <option value="front" selected>前向き固定</option>
-          <option value="enemyfront">敵陣では前向き</option>
-          <option value="free">自由に選べる</option>
-        </select>
-      </label>
-      <label>効果音
-        <select id="optSound">
-          <option value="on" selected>あり</option>
-          <option value="off">なし</option>
-        </select>
-      </label>
-      <label>王手・詰みのルール
-        <select id="optCheck">
-          <option value="on" selected>あり（王手を放置できない）</option>
-          <option value="off">なし</option>
-        </select>
-      </label>
-      <label>総大将の視野
-        <select id="optGenFov">
-          <option value="wide">斜め前も見える</option>
-          <option value="strict" selected>目の前だけ見える</option>
-        </select>
-      </label>
-      <label>移動方向の目印
-        <select id="optArrow">
-          <option value="on" selected>常時表示</option>
-          <option value="sel">選択時のみ</option>
-          <option value="off">非表示</option>
-        </select>
-      </label>
-    </div>
-  </details>
-
-  <details class="panel"><summary>操作</summary>
-    <div class="rail" style="min-height:0">
-      <button id="btnUndo">1手戻す</button>
-      <button id="btnReset">最初から</button>
-      <button id="btnToTitle">タイトルへ</button>
-    </div>
-  </details>
   </div>
 
 </div></div>
@@ -1203,13 +1154,7 @@ document.getElementById("btnUndo").addEventListener("click",()=>{
 const reset=()=>{S=fresh();hist=[];busy=false;placeCpu();render()};
 document.getElementById("btnReset").addEventListener("click",reset);
 document.getElementById("btnNew").addEventListener("click",reset);
-document.getElementById("optLevel").addEventListener("change",e=>{OPT.level=+e.target.value});
-document.getElementById("optSound").addEventListener("change",e=>{OPT.sound=e.target.value;if(OPT.sound==="on"){SFX.unlock();SFX.move()}});
-document.getElementById("optDrop").addEventListener("change",e=>{OPT.dropZone=e.target.value;render()});
-document.getElementById("optDropFace").addEventListener("change",e=>{OPT.dropFace=e.target.value;render()});
-document.getElementById("optCheck").addEventListener("change",e=>{OPT.check=e.target.value==="on";render()});
-document.getElementById("optGenFov").addEventListener("change",e=>{OPT.genFov=e.target.value;render()});
-document.getElementById("optArrow").addEventListener("change",e=>{OPT.arrows=e.target.value;render()});
+/* 設定の結線は renderOptions() に統合 */
 reset();
 showScreen('title');
 
@@ -1328,7 +1273,7 @@ function renderLevels(){
   el.querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{
     SFX.tap();
     OPT.level=+b.dataset.lv;
-    const sel=document.getElementById("optLevel"); if(sel) sel.value=String(OPT.level);
+    syncOptions();
     reset(); showScreen("game");
   }));
 }
@@ -1564,45 +1509,58 @@ function renderDrill(){
   }));
 }
 
-/* ================= 設定画面 ================= */
-function renderConfig(){
-  const el=document.getElementById("configOpts");
-  el.innerHTML=`
-   <label>コンピュータの強さ<select id="cfgLevel">${
-     LEVEL_INFO.map(l=>`<option value="${l.v}" ${OPT.level===l.v?"selected":""}>${l.nm}</option>`).join("")}</select></label>
-   <label>持ち駒<select id="cfgDrop">
-     <option value="any" ${OPT.dropZone==="any"?"selected":""}>盤上どこでも</option>
-     <option value="noenemy" ${OPT.dropZone==="noenemy"?"selected":""}>敵陣以外</option></select></label>
-   <label>総大将の視野<select id="cfgFov">
-     <option value="strict" ${OPT.genFov==="strict"?"selected":""}>目の前だけ</option>
-     <option value="wide" ${OPT.genFov==="wide"?"selected":""}>斜め前も見える</option></select></label>
-   <label>王手・詰みのルール<select id="cfgCheck">
-     <option value="on" ${OPT.check?"selected":""}>あり</option>
-     <option value="off" ${!OPT.check?"selected":""}>なし</option></select></label>
-   <label>効果音<select id="cfgSound">
-     <option value="on" ${OPT.sound==="on"?"selected":""}>あり</option>
-     <option value="off" ${OPT.sound==="off"?"selected":""}>なし</option></select></label>
-   <label>勝率の表示<select id="cfgWin">
-     <option value="on" ${OPT.winbar?"selected":""}>あり</option>
-     <option value="off" ${!OPT.winbar?"selected":""}>なし</option></select></label>
-   <label>総大将の向き変え<select id="cfgRot">
-     <option value="on" ${OPT.genRotate?"selected":""}>できる</option>
-     <option value="off" ${!OPT.genRotate?"selected":""}>できない</option></select></label>
-   <label>移動方向の目印<select id="cfgArrow">
-     <option value="on" ${OPT.arrows==="on"?"selected":""}>常時表示</option>
-     <option value="sel" ${OPT.arrows==="sel"?"selected":""}>選択時のみ</option>
-     <option value="off" ${OPT.arrows==="off"?"selected":""}>非表示</option></select></label>`;
-  const sync=(id,fn)=>document.getElementById(id).addEventListener("change",e=>{fn(e.target.value);render()});
-  sync("cfgLevel",v=>{OPT.level=+v;const s=document.getElementById("optLevel");if(s)s.value=v});
-  sync("cfgDrop",v=>{OPT.dropZone=v;const s=document.getElementById("optDrop");if(s)s.value=v});
-  sync("cfgDropFace",v=>{OPT.dropFace=v;const s=document.getElementById("optDropFace");if(s)s.value=v});
-  sync("cfgFov",v=>{OPT.genFov=v;const s=document.getElementById("optGenFov");if(s)s.value=v});
-  sync("cfgCheck",v=>{OPT.check=(v==="on");const s=document.getElementById("optCheck");if(s)s.value=v});
-  sync("cfgSound",v=>{OPT.sound=v;const el=document.getElementById("optSound");if(el)el.value=v;if(v==="on"){SFX.unlock();SFX.move()}});
-  sync("cfgWin",v=>{OPT.winbar=(v==="on")});
-  sync("cfgRot",v=>{OPT.genRotate=(v==="on")});
-  sync("cfgArrow",v=>{OPT.arrows=v;const s=document.getElementById("optArrow");if(s)s.value=v});
+/* ================= 設定（1か所で定義し、対局中パネルと設定画面の両方を生成） ================= */
+const DEPTH={1:"1手読み",2:"2手読み",3:"3手読み",4:"4手読み",5:"6手読み・最善のみ"};
+const OPTDEFS=[
+  {k:"level",label:"コンピュータの強さ",
+   opts:()=>LEVEL_INFO.map(l=>[String(l.v),`${l.nm}　${DEPTH[l.v]}`]),
+   get:()=>String(OPT.level), set:v=>{OPT.level=+v}},
+  {k:"dropZone",label:"持ち駒",
+   opts:[["any","盤上どこでも打てる"],["noenemy","敵陣以外に打てる"],["none","使えない（取った駒は戻らない）"]],
+   get:()=>OPT.dropZone, set:v=>{OPT.dropZone=v}},
+  {k:"dropFace",label:"打つときの向き",
+   opts:[["front","前向き固定"],["enemyfront","敵陣では前向き"],["free","自由に選べる"]],
+   get:()=>OPT.dropFace, set:v=>{OPT.dropFace=v}},
+  {k:"check",label:"王手・詰みのルール",
+   opts:[["on","あり（王手を放置できない）"],["off","なし"]],
+   get:()=>OPT.check?"on":"off", set:v=>{OPT.check=(v==="on")}},
+  {k:"genFov",label:"総大将の視野",
+   opts:[["strict","目の前だけ見える"],["wide","斜め前も見える"]],
+   get:()=>OPT.genFov, set:v=>{OPT.genFov=v}},
+  {k:"genRotate",label:"総大将の向き変え",
+   opts:[["on","できる"],["off","できない"]],
+   get:()=>OPT.genRotate?"on":"off", set:v=>{OPT.genRotate=(v==="on")}},
+  {k:"winbar",label:"勝率の表示",
+   opts:[["on","あり"],["off","なし"]],
+   get:()=>OPT.winbar?"on":"off", set:v=>{OPT.winbar=(v==="on")}},
+  {k:"sound",label:"効果音",
+   opts:[["on","あり"],["off","なし"]],
+   get:()=>OPT.sound, set:v=>{OPT.sound=v; if(v==="on"){SFX.unlock();SFX.move()}}},
+  {k:"arrows",label:"移動方向の目印",
+   opts:[["on","常時表示"],["sel","選択時のみ"],["off","非表示"]],
+   get:()=>OPT.arrows, set:v=>{OPT.arrows=v}}
+];
+function renderOptions(hostId){
+  const el=document.getElementById(hostId); if(!el) return;
+  el.innerHTML=OPTDEFS.map(d=>{
+    const list=(typeof d.opts==="function")?d.opts():d.opts;
+    const cur=d.get();
+    return `<label>${d.label}<select data-opt="${d.k}">`
+      +list.map(([v,t])=>`<option value="${v}"${v===cur?" selected":""}>${t}</option>`).join("")
+      +`</select></label>`;
+  }).join("");
+  el.querySelectorAll("select[data-opt]").forEach(sel=>sel.addEventListener("change",e=>{
+    const d=OPTDEFS.find(x=>x.k===e.target.dataset.opt); if(!d) return;
+    d.set(e.target.value); syncOptions(); render();
+  }));
 }
+function syncOptions(){
+  document.querySelectorAll("select[data-opt]").forEach(sel=>{
+    const d=OPTDEFS.find(x=>x.k===sel.dataset.opt); if(d) sel.value=d.get();
+  });
+}
+function renderConfig(){ renderOptions("configOpts"); }
+renderOptions("gameOpts");
 
 </script>
 </body>
