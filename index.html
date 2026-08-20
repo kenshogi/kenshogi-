@@ -20,8 +20,8 @@
   --grid:rgba(72,54,30,.55); /* 碁盤の線 */
   /* 陣営（絵文字を載せるので、駒の地の色で見分ける） */
   --p0:#2b3a5c;         /* 自分の駒：濃紺 */
-  --p1:#fffdf7;         /* 相手の駒：生成り */
-  --p1-line:#2b3a5c;
+  --p1:#c2352b;         /* 相手の駒：赤 */
+  --p1-line:#8d1f18;
   /* 機能色（絵文字の黄・赤・金と重ならない色を選ぶ） */
   --hl:#12a150;         /* 移動方向・移動先：緑 */
   --sel:#2f7fe8;        /* 選択中：青 */
@@ -50,7 +50,7 @@ body{background:radial-gradient(120% 90% at 50% -10%,#f3f7ff 0%,var(--bg) 55%);
   border-bottom:1px solid var(--line);padding:6px 2px;margin-bottom:6px;min-height:40px}
 .seat{width:20px;height:20px;flex:none;clip-path:polygon(50% 0%,88% 20%,100% 100%,0% 100%,12% 20%)}
 .seat.s0{background:var(--p0)}
-.seat.s1{background:var(--p1);transform:rotate(180deg);box-shadow:inset 0 0 0 1.5px var(--p1-line)}
+.seat.s1{background:var(--p1);transform:rotate(180deg)}
 .status-main{font-size:13.5px;color:var(--strong)}
 .status-sub{font-size:11.5px;color:var(--text-dim);margin-left:auto;text-align:right;font-family:ui-monospace,monospace}
 .thinking{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--alert);
@@ -73,7 +73,7 @@ body{background:radial-gradient(120% 90% at 50% -10%,#f3f7ff 0%,var(--bg) 55%);
   width:27px;height:27px;flex:none;
   clip-path:polygon(50% 0%,86% 19%,100% 100%,0% 100%,14% 19%)}
 .hand-slot.h0 .kj{background:var(--p0)}
-.hand-slot.h1 .kj{background:var(--p1);box-shadow:inset 0 0 0 1.5px rgba(43,58,92,.45)}
+.hand-slot.h1 .kj{background:var(--p1)}
 .hand-slot.h1 .kj{transform:rotate(180deg)}
 .hand-slot .cnt{font-size:11.5px;font-family:ui-monospace,monospace;color:var(--text)}
 .hand-slot.has .cnt{color:var(--strong)}
@@ -85,18 +85,22 @@ body{background:radial-gradient(120% 90% at 50% -10%,#f3f7ff 0%,var(--bg) 55%);
 
 .board-frame{width:min(100%,56vh);margin:0 auto;padding:7px;background:linear-gradient(160deg,#e6cf9a,#d8bd82);
   border:1px solid var(--frame);box-shadow:0 8px 20px rgba(34,32,58,.18)}
+/* 罫線はマスの枠ではなく、盤の背景に引いた通し線（将棋盤と同じ） */
 .board{display:grid;grid-template-columns:repeat(9,1fr);aspect-ratio:1;width:100%;
-  background:var(--board);border:1px solid var(--grid);position:relative}
-.cell{position:relative;border-right:1px solid var(--grid);border-bottom:1px solid var(--grid);
+  border:1px solid var(--grid);position:relative;
+  background-color:var(--board);
+  background-image:
+    repeating-linear-gradient(to right,var(--grid) 0 1px,transparent 1px calc(100%/9)),
+    repeating-linear-gradient(to bottom,var(--grid) 0 1px,transparent 1px calc(100%/9));
+  background-position:0 0;background-repeat:no-repeat}
+.cell{position:relative;
   display:flex;align-items:center;justify-content:center;padding:0;background:none;cursor:pointer}
-.cell:nth-child(9n){border-right:none}
-.cell:nth-child(n+73){border-bottom:none}
 .cell.zone-me{background:rgba(43,58,92,.08)}
-.cell.star::after{content:"";position:absolute;left:-2.5px;top:-2.5px;width:5px;height:5px;
+.cell.star::after{content:"";position:absolute;left:-2px;top:-2px;width:5px;height:5px;
   border-radius:50%;background:var(--grid);z-index:2}
 .cell:focus-visible{outline:2px solid var(--lemon);outline-offset:-2px;z-index:6}
-.cell.sel{background:color-mix(in srgb,var(--sel) 30%,transparent)}
-.cell.drop-target{background:color-mix(in srgb,var(--sel) 14%,transparent)}
+.cell.sel{background:rgba(47,127,232,.3)}
+.cell.drop-target{background:rgba(47,127,232,.14)}
 .cell.last{box-shadow:inset 0 0 0 2px var(--sel)}
 
 .mk{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
@@ -114,7 +118,7 @@ body{background:radial-gradient(120% 90% at 50% -10%,#f3f7ff 0%,var(--bg) 55%);
   clip-path:polygon(50% 0%,86% 19%,100% 100%,0% 100%,14% 19%);
   display:flex;align-items:center;justify-content:center;transition:transform .16s ease;z-index:3}
 .koma.p0{background:linear-gradient(180deg,#3c4f78,#22304f)}
-.koma.p1{background:linear-gradient(180deg,#fffdf7,#efe6d2);box-shadow:inset 0 0 0 1.5px rgba(43,58,92,.45)}
+.koma.p1{background:linear-gradient(180deg,#d9463a,#b02a21)}
 .koma .glyph{width:100%;height:100%;position:relative;display:flex;align-items:center;justify-content:center}
 /* 絵文字。駒ごと回転するので、向きは駒の五角形と絵文字の傾きで分かる */
 .koma .ic{position:absolute;top:50%;left:0;right:0;transform:translateY(-52%);
@@ -127,7 +131,7 @@ body{background:radial-gradient(120% 90% at 50% -10%,#f3f7ff 0%,var(--bg) 55%);
 .f2{transform:rotate(180deg)}
 .f3{transform:rotate(270deg)}
 .arrows{position:absolute;inset:0;pointer-events:none}
-.arrows circle{fill:var(--hl);stroke:#fff;stroke-width:.5}
+.arrows circle{fill:#fff;stroke:rgba(0,0,0,.35);stroke-width:.4}
 
 .rail{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-height:0}
 #dock{position:sticky;bottom:0;z-index:30;
@@ -196,7 +200,7 @@ select{font:inherit;font-size:12px;background:var(--card);color:var(--strong);
 /* ---- 勝率バー ---- */
 #winbar{width:min(100%,56vh);margin:4px auto 9px}
 #winbar.hidden{display:none}
-.wb-track{position:relative;height:16px;background:linear-gradient(180deg,#fffdf7,#e8dcc0);
+.wb-track{position:relative;height:16px;background:linear-gradient(180deg,#d9463a,#b02a21);
   overflow:hidden;border:1.5px solid var(--strong);border-radius:9px;box-shadow:inset 0 1px 3px rgba(0,0,0,.15)}
 .wb-fill{height:100%;background:linear-gradient(180deg,#3c4f78,#22304f);width:50%;
   transition:width .45s cubic-bezier(.4,0,.2,1)}
@@ -208,7 +212,7 @@ select{font:inherit;font-size:12px;background:var(--card);color:var(--strong);
   color:var(--text-dim);margin-top:4px}
 .wb-txt b{font-weight:700;font-size:15px;font-variant-numeric:tabular-nums}
 .wb-txt .me b{color:var(--p0)}
-.wb-txt .op b{color:#9a7b3a}
+.wb-txt .op b{color:var(--p1)}
 
 /* ---- 練習 ---- */
 #drillBar{width:min(100%,56vh);margin:8px auto 0;padding:11px 13px;
@@ -223,7 +227,7 @@ select{font:inherit;font-size:12px;background:var(--card);color:var(--strong);
 
 /* ---- 相手の指し手 ---- */
 #enemyMove{width:min(100%,56vh);margin:6px auto 0;padding:9px 11px;
-  background:#ffe9f2;border:2px solid rgba(229,53,122,.5);border-radius:12px;
+  background:#fdecea;border:2px solid rgba(194,53,43,.45);border-radius:12px;
   font-size:13px;color:var(--strong);line-height:1.5}
 #enemyMove b{color:var(--alert);font-weight:600}
 #enemyMove.hidden{display:none}
@@ -283,10 +287,13 @@ button.big{width:100%;padding:14px;font-size:15px;letter-spacing:.08em}
 
 /* ---- ミニ盤 ---- */
 .mini{display:grid;aspect-ratio:1;width:min(100%,250px);margin:12px auto 4px;
-  background:var(--board);border:1px solid var(--grid)}
-.mcell{position:relative;border-right:1px solid var(--grid);border-bottom:1px solid var(--grid);
+  border:1px solid var(--grid);background-color:var(--board);
+  background-image:
+    repeating-linear-gradient(to right,var(--grid) 0 1px,transparent 1px calc(100%/5)),
+    repeating-linear-gradient(to bottom,var(--grid) 0 1px,transparent 1px calc(100%/5));
+  background-repeat:no-repeat}
+.mcell{position:relative;
   display:flex;align-items:center;justify-content:center}
-.mcell:nth-last-child(-n+1){border-bottom:none}
 .mcell.ok::after{content:"";position:absolute;inset:8%;border:3px solid var(--hl);border-radius:6px;z-index:6}
 .mcell.ng::after{content:"×";position:absolute;z-index:6;
   width:60%;height:60%;display:flex;align-items:center;justify-content:center;
