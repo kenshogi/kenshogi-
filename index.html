@@ -402,7 +402,7 @@ button.big{width:100%;padding:14px;font-size:15px;letter-spacing:.08em}
   <details class="panel"><summary>駒</summary><div class="legend" id="legend"></div></details>
 
   <details class="panel"><summary>ルール要旨</summary><div class="rules">
-    駒は人間と同じで<b>正面にしか目がない</b>。<b>キングは目の前の直線だけ</b>しか見ていない（周囲は部下任せ）。相手が自分の<b>正面側（斜め前を含む）</b>にいれば「見えている」。<br>
+    駒は人間と同じで<b>正面にしか目がない</b>。相手が自分の<b>正面側（斜め前を含む）</b>にいれば「見えている」。<b>真横と背後は見えない</b>。<br>
     <table>
       <tr><th>状況</th><th>結果</th></tr>
       <tr><td><b>相手が自分を見ていない</b></td><td>不意打ち。<b>無条件で取れる</b></td></tr>
@@ -410,7 +410,7 @@ button.big{width:100%;padding:14px;font-size:15px;letter-spacing:.08em}
       <tr><td>キングが絡む正面衝突</td><td><b>互いに討てない</b></td></tr>
       <tr><td>相手だけが自分を見ている</td><td><b>取れない</b></td></tr>
     </table>
-    <b>じゃんけん</b>：グー＞チョキ＞パー＞グー。同種はあいこで取れない。<br><b>キング</b>：目の前の直線しか見えず、<b>見えている相手しか討てない</b>。正面で見合った相手とは互いに討てない。横と背後から討たれる。<br>
+    <b>じゃんけん</b>：グー＞チョキ＞パー＞グー。同種はあいこで取れない。<br><b>キング</b>：視野は他の駒と同じ。ただし<b>見えている相手しか討てない</b>（他の駒は見えていない相手も討てる）。正面で見合った相手とは互いに討てない。横と背後から討たれる。<br>
     <b>勝敗</b>：相手のキングを詰める／<b>相手のキング以外を全滅させる</b>。<br>
     <b>持ち駒</b>：取った駒（キング除く）は<b>盤上のどこでも</b>空きマスに打てる。打った駒は<b>必ず前を向く</b>（設定で変更可）。<br>
     <b>王手</b>：キングが次に取られる状態にされたら、それを解消する手しか指せない。解消できなければ<b>詰み</b>で負け。逃げる・攻め手を取る・割り込む他に、<b>キングの向きを変えて睨み返す</b>受けがある（見合えばじゃんけんとなりキングは無敵）。<br><b>手番</b>：移動／向き変え（攻撃不可）／持ち駒を打つ、のいずれか。待機はできない。
@@ -460,7 +460,7 @@ function rotVec(dx,dy,face){
 
 /* ================= 状態 ================= */
 let S, hist=[], busy=false;
-let OPT={level:2, arrows:"on", check:true, genFov:"strict", dropZone:"any", dropFace:"front", genRotate:true, winbar:true, sound:"on"};
+let OPT={level:2, arrows:"off", check:true, genFov:"wide", dropZone:"any", dropFace:"front", genRotate:true, winbar:true, sound:"on"};
 function fresh(){
   return {phase:"setup",board:new Uint8Array(81),hand:[[0,0,0,0],[0,0,0,0]],
     sel:null,armed:null,dropArmed:null,pendingDrop:null,
@@ -1205,7 +1205,7 @@ showScreen('title');
 
 /* ================= 効果音（Web Audio で合成。音声ファイル不要） ================= */
 const SFX = (()=>{
-  let ctx=null, master=null, ready=false;
+  let ctx=null, master=null, keep=null, ready=false, failed=0;
   function init(){
     if(ctx) return;
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -1214,12 +1214,36 @@ const SFX = (()=>{
     master = ctx.createGain();
     master.gain.value = 0.9;
     master.connect(ctx.destination);
+    /* 聞こえない音を鳴らし続ける。
+       Safari は何も鳴っていない音声を勝手に止めてしまい、
+       止まると次の操作まで無音になるため、これで止めさせない */
+    try{
+      keep = ctx.createOscillator();
+      const kg = ctx.createGain();
+      kg.gain.value = 0.00001;
+      keep.frequency.value = 30;
+      keep.connect(kg); kg.connect(ctx.destination);
+      keep.start();
+    }catch(e){}
+    /* 着信などで中断されたら自動で戻す */
+    ctx.onstatechange = ()=>{ if(ctx && ctx.state !== "running") try{ctx.resume()}catch(e){} };
     ready = true;
   }
-  /* iOSは操作起点でしか鳴らせないため、最初のタップで起こす */
+  /* 音声が作り直せなくなることがあるので、その場合は丸ごと作り直す */
+  function rebuild(){
+    try{ if(ctx) ctx.close() }catch(e){}
+    ctx=null; master=null; keep=null; ready=false;
+    init();
+    if(ctx && ctx.state !== "running") try{ ctx.resume() }catch(e){}
+  }
+  /* iOSは操作起点でしか鳴らせないため、操作のたびに起こし直す */
   function unlock(){
     init();
-    if(ctx && ctx.state === "suspended") ctx.resume();
+    if(!ctx) return;
+    if(ctx.state === "running"){ failed=0; return }
+    if(failed >= 2){ rebuild(); failed=0; return }
+    failed++;
+    try{ const r=ctx.resume(); if(r&&r.then) r.then(()=>{failed=0}).catch(()=>{}) }catch(e){}
   }
   function noiseBuffer(sec){
     const n = Math.floor(ctx.sampleRate*sec);
@@ -1269,8 +1293,8 @@ const SFX = (()=>{
   const on = ()=>{
     if(OPT.sound === "off") return false;
     if(!ctx) init();
-    if(ctx && ctx.state === "suspended") ctx.resume();
-    return ready;
+    if(ctx && ctx.state !== "running") unlock();
+    return ready && ctx && ctx.state === "running";
   };
   return {
     unlock,
@@ -1287,9 +1311,12 @@ const SFX = (()=>{
     draw(){     if(on()){ tone(392,0.4,0.18); tone(392,0.4,0.14,"sine",0.18) } }
   };
 })();
-/* 操作のたびに、止まっていれば起こし直す（最初の1回だけだと復帰後に鳴らなくなる） */
-["pointerdown","touchstart","click"].forEach(ev=>
+/* 操作のたびに、そして画面に戻ってきたときに、止まっていれば起こし直す */
+["pointerdown","touchstart","click","keydown"].forEach(ev=>
   document.addEventListener(ev, ()=>SFX.unlock(), {passive:true}));
+document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) SFX.unlock() });
+window.addEventListener("pageshow", ()=>SFX.unlock());
+window.addEventListener("focus", ()=>SFX.unlock());
 
 /* ================= 画面管理 ================= */
 function showScreen(id){
@@ -1367,7 +1394,7 @@ ${mini({n:5,p:[{x:2,y:3,o:0,t:GU,f:U},{x:2,y:1,o:1,t:PA,f:U}],
 <tr><td><b>パー</b></td><td>4</td><td>前・斜め前へ1マス</td></tr>
 </table>
 <p>相性は<b class="em">グー ＞ チョキ ＞ パー ＞ グー</b>。同じ種類どうしはあいこで、取り合えません。</p>
-<p>キングは三すくみに入りません。目の前しか見えないという大きな弱点があり、後のページで説明します。</p>`},
+<p>キングは三すくみに入りません。<b>見えている相手しか討てない</b>という大きな弱点があり、後のページで説明します。</p>`},
 
 {t:"駒の動き",h:()=>`
 <p>動ける範囲は<b class="em">駒の向きが基準</b>です。下の図はすべて<b>上を向いている</b>ときの動き。</p>
@@ -1406,16 +1433,18 @@ ${mini({n:5,p:[{x:2,y:3,o:0,t:GU,f:U},{x:2,y:2,o:1,t:PA,f:D}],m:[{x:2,y:2,k:"ng"
 ${mini({n:5,p:[{x:2,y:3,o:0,t:GU,f:U},{x:2,y:2,o:1,t:PA,f:U}],m:[{x:2,y:2,k:"ok"}],
  cap:"パーが背を向けている → 相性に関係なく討てる"})}`},
 
-{t:"キングは目の前しか見えない",h:()=>`
-<p>キングは<b class="em">目の前の直線だけ</b>しか見ていません。周囲は部下任せです。</p>
+{t:"キングの弱点",h:()=>`
+<p>キングの視野は<b>ほかの駒と同じ</b>です。正面側（斜め前を含む）が見えていて、真横と背後は見えていません。</p>
 ${mini({n:5,p:[{x:2,y:2,o:1,t:GEN,f:D}],
- m:[{x:2,y:3,k:"see"},{x:2,y:4,k:"see"}],cap:"下を向いたキングの視界。斜めも横も見えていない"})}
-<p>見えないということは、<b class="em">討つこともできない</b>ということ。キングが討てるのは<b>目の前の直線にいる相手だけ</b>です。</p>
-<p>そして正面で見合った相手とは<b>互いに討てません</b>。キングは攻めの駒ではなく、<b class="em">逃げて守る駒</b>です。</p>
-<p>横・後ろ・斜めからは<b class="em">無条件で討たれます</b>。</p>
+ m:[{x:1,y:3,k:"see"},{x:2,y:3,k:"see"},{x:3,y:3,k:"see"},{x:1,y:4,k:"see"},{x:2,y:4,k:"see"},{x:3,y:4,k:"see"}],
+ cap:"下を向いたキングの視界。真横と背後は見えていない"})}
+<p>違うのは<b class="em">攻め方</b>です。ほかの駒は背を向けた相手を討てますが、<b class="em">キングは自分に見えている相手しか討てません</b>。</p>
+<p>そして正面で見合った相手とは<b>互いに討てません</b>。つまりキングは攻めの駒ではなく、<b class="em">逃げて守る駒</b>です。</p>
+<p>真横と背後からは<b class="em">無条件で討たれます</b>。</p>
 ${mini({n:5,p:[{x:2,y:2,o:1,t:GEN,f:D},{x:1,y:2,o:0,t:GU,f:R}],m:[{x:2,y:2,k:"ok"}],
  cap:"横から睨むグー。キングは気づけない"})}
-<p>斜めへ攻撃できるのは<b>パーとキングだけ</b>。キングは斜めを見られず、向き直っても防げないので、<b class="em">パーが寄せの主役</b>になります。</p>`},
+<p>キングは向きを変えて睨み返せますが、<b>向ける方向は1つだけ</b>。<b class="em">横から寄せるのが攻めの基本</b>になります。</p>`},
+
 
 {t:"取った駒は味方になる",h:()=>`
 <p>討ち取った駒（キングを除く）は<b>持ち駒</b>になり、自分の駒として使えます。</p>
@@ -1437,7 +1466,7 @@ ${mini({n:5,p:[{x:2,y:2,o:1,t:GEN,f:D},{x:2,y:1,o:0,t:GU,f:D}],m:[{x:2,y:2,k:"ok
  cap:"キングの背後からの王手"})}
 ${mini({n:5,p:[{x:2,y:2,o:1,t:GEN,f:U},{x:2,y:1,o:0,t:GU,f:D}],m:[{x:2,y:2,k:"ng"}],
  cap:"向き直れば見合った状態になり、互いに討てない。王手が消える"})}
-<p>ただしキングは斜めが見えないため、<b class="em">斜めからの王手は睨み返せません</b>。ここが詰みの急所です。</p>`},
+<p>真横や背後からの王手も、向き直れば睨み返せます。ただし<b class="em">向ける方向は1つだけ</b>。逃げ道を塞いだうえで二方向から迫るのが、詰みの基本形です。</p>`},
 
 {t:"勝ち方と手番",h:()=>`
 <h3>手番でできること</h3>
@@ -1508,7 +1537,7 @@ const DRILLS=[
  goal(){ const c=S.board[IDX(4,4)]; return !!c && dO(c)===0 && dT(c)===PA }},
 
 {t:"一手詰め",
- msg:"相手のキングは下を向いていて、<b>斜めが見えない</b>。逃げ道はすべて塞いである。<b>パー</b> を斜めへ回り込ませて詰まそう。",
+ msg:"相手のキングは下を向いていて、<b>真横が見えない</b>。逃げ道はすべて塞いである。<b>グー</b> を横から寄せて詰まそう。",
  setup(){
    S.board[IDX(4,0)]=enc(1,GEN,2);
    S.board[IDX(4,1)]=enc(0,GU,0);
