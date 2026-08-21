@@ -214,6 +214,33 @@ select{font:inherit;font-size:12px;background:var(--card);color:var(--strong);
 .wb-txt .me b{color:var(--p0)}
 .wb-txt .op b{color:var(--p1)}
 
+/* ---- 演出 ---- */
+.fx-slash{position:absolute;inset:-45%;pointer-events:none;z-index:9;overflow:hidden}
+.fx-slash::before,.fx-slash::after{content:"";position:absolute;left:0;top:50%;width:100%;height:4px;
+  background:linear-gradient(90deg,transparent,#fff 42%,#fff 58%,transparent);
+  animation:fx-cut .36s cubic-bezier(.2,.75,.3,1) forwards}
+.fx-slash::after{height:14px;filter:blur(6px);opacity:.7}
+@keyframes fx-cut{
+  0%{transform:translateY(-50%) rotate(-38deg) scaleX(0);opacity:0;transform-origin:left center}
+  22%{opacity:1}
+  55%{transform:translateY(-50%) rotate(-38deg) scaleX(1);opacity:1;transform-origin:left center}
+  100%{transform:translateY(-50%) rotate(-38deg) scaleX(1);opacity:0;transform-origin:left center}}
+.quake{animation:fx-quake .34s ease-out}
+@keyframes fx-quake{0%,100%{transform:translate(0,0)}
+  20%{transform:translate(-3px,2px)}45%{transform:translate(3px,-2px)}70%{transform:translate(-2px,-1px)}}
+.quake-big{animation:fx-quake-big .62s ease-out}
+@keyframes fx-quake-big{0%,100%{transform:translate(0,0) rotate(0)}
+  15%{transform:translate(-7px,4px) rotate(-.8deg)}35%{transform:translate(7px,-5px) rotate(.8deg)}
+  55%{transform:translate(-5px,3px) rotate(-.5deg)}80%{transform:translate(3px,-2px) rotate(.3deg)}}
+.fx-burst{position:fixed;inset:0;z-index:200;pointer-events:none;
+  background:radial-gradient(circle at 50% 45%,rgba(255,255,255,.95),rgba(255,214,102,.55) 35%,transparent 70%);
+  animation:fx-burst .9s ease-out forwards}
+@keyframes fx-burst{0%{opacity:0;transform:scale(.4)}12%{opacity:1;transform:scale(1)}
+  100%{opacity:0;transform:scale(1.55)}}
+.try{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding-top:2px}
+.try span{font-size:12px;color:var(--text-dim)}
+.try button{padding:5px 10px;font-size:12px}
+
 /* ---- 練習 ---- */
 #drillBar{width:min(100%,56vh);margin:8px auto 0;padding:11px 13px;
   border:2px solid var(--lemon-dim);border-radius:14px;background:#fff8e2;font-size:13px;line-height:1.6}
@@ -460,7 +487,7 @@ function rotVec(dx,dy,face){
 
 /* ================= 状態 ================= */
 let S, hist=[], busy=false;
-let OPT={level:2, arrows:"off", check:true, genFov:"wide", dropZone:"any", dropFace:"front", genRotate:true, winbar:true, sound:"on"};
+let OPT={level:2, arrows:"off", check:true, genFov:"wide", dropZone:"any", dropFace:"front", genRotate:true, winbar:true, sound:"on", sfxSet:"a"};
 function fresh(){
   return {phase:"setup",board:new Uint8Array(81),hand:[[0,0,0,0],[0,0,0,0]],
     sel:null,armed:null,dropArmed:null,pendingDrop:null,
@@ -840,7 +867,7 @@ function pushHist(){
 function endWin(w,by){
   S.winner=w;S.winBy=by;
   if(S.drill==null){
-    if(w<0) SFX.draw(); else if(w===HUMAN) SFX.win(); else SFX.lose();
+    if(w<0) SFX.draw(); else if(w===HUMAN){ SFX.win(); FX.win() } else SFX.lose();
   }
   render();
 }
@@ -877,7 +904,7 @@ function performMove(from,to,face){
     note=`${KANJI[dT(q)]}を取る（${m?m.why:""}）`;
   }
   S.board[to]=enc(owner,t,face); S.board[from]=0; S.last=[from,to];
-  if(q) SFX.capture(); else SFX.move();
+  if(q){ SFX.capture(); FX.slash(to) } else SFX.move();
   S.log.unshift(`<b>${S.move}.</b> ${owner===0?"▲":"△"}${SQ(to)}${KANJI[t]}${note?" "+note:""}`);
   if(owner===CPU){
     S.enemyMove = q
@@ -1289,6 +1316,96 @@ const SFX = (()=>{
     o.connect(g); g.connect(master);
     o.start(t); o.stop(t+dur);
   }
+  /* 斬撃：帯域を高→低へ滑らせたノイズ。「ズバッ」の芯になる */
+  function sweep(f0,f1,dur,vol,q,delay=0){
+    if(!ready) return;
+    const t = ctx.currentTime + delay;
+    const src = ctx.createBufferSource(); src.buffer = noiseBuffer(dur);
+    const bp = ctx.createBiquadFilter(); bp.type="bandpass"; bp.Q.value=q;
+    bp.frequency.setValueAtTime(f0,t);
+    bp.frequency.exponentialRampToValueAtTime(Math.max(30,f1), t+dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0,t);
+    g.gain.linearRampToValueAtTime(vol, t+dur*0.12);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    src.connect(bp); bp.connect(g); g.connect(master);
+    src.start(t); src.stop(t+dur);
+  }
+  /* 重い衝撃：低音を落とす。倒れる音に使う */
+  function boom(f,dur,vol,delay=0){
+    if(!ready) return;
+    const t = ctx.currentTime + delay;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = "sine";
+    o.frequency.setValueAtTime(f,t);
+    o.frequency.exponentialRampToValueAtTime(Math.max(20,f*0.35), t+dur*0.8);
+    g.gain.setValueAtTime(vol,t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t+dur);
+  }
+  /* 不気味なうなり：わずかにずらした2音を重ね、沈み込ませる */
+  function drone(f,dur,vol,type="sawtooth",detune=14,delay=0){
+    if(!ready) return;
+    const t = ctx.currentTime + delay;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0,t);
+    g.gain.linearRampToValueAtTime(vol, t+0.06);
+    g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+    const lp = ctx.createBiquadFilter(); lp.type="lowpass";
+    lp.frequency.setValueAtTime(1700,t);
+    lp.frequency.exponentialRampToValueAtTime(220, t+dur);
+    [0,detune].forEach(d=>{
+      const o = ctx.createOscillator(); o.type=type;
+      o.frequency.setValueAtTime(f,t);
+      o.frequency.exponentialRampToValueAtTime(f*0.72, t+dur);
+      o.detune.value = d;
+      o.connect(lp); o.start(t); o.stop(t+dur);
+    });
+    lp.connect(g); g.connect(master);
+  }
+  /* 金属的な余韻：整数倍でない倍音を重ねる */
+  function metal(f,dur,vol,delay=0){
+    if(!ready) return;
+    const t = ctx.currentTime + delay;
+    [1,2.76,5.4].forEach((m,i)=>{
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type="sine"; o.frequency.value = f*m;
+      g.gain.setValueAtTime(vol/(i+1.6), t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t+dur);
+      o.connect(g); g.connect(master); o.start(t); o.stop(t+dur);
+    });
+  }
+  function melody(notes,type="triangle",vol=0.22){
+    notes.forEach(([f,at,dur])=>tone(f,dur,vol,type,at));
+  }
+  /* 効果音のタイプ。取る／打つ／勝利の3つだけ差し替える */
+  const SETS = {
+    a:{ /* 斬：鋭く速い */
+      capture(){ sweep(5200,780,0.11,0.50,1.1); clack(2400,0.05,0.45,14);
+                 boom(96,0.34,0.34,0.12); metal(430,0.50,0.10,0.14) },
+      drop(){    drone(58,0.55,0.26,"sawtooth",16); metal(1180,0.45,0.07,0.03) },
+      win(){     sweep(300,4200,0.28,0.34,0.8); boom(70,0.60,0.50);
+                 melody([[523.25,0.42,0.13],[659.25,0.55,0.13],[783.99,0.68,0.13],[1046.5,0.81,0.34],
+                         [261.63,1.20,1.00],[783.99,1.20,0.60],[1046.5,1.20,0.80],[1318.5,1.20,0.95]]) }
+    },
+    b:{ /* 重：鈍く重い */
+      capture(){ sweep(3000,320,0.16,0.55,0.9); clack(420,0.22,0.80,3); boom(58,0.55,0.50,0.14) },
+      drop(){    drone(41,0.75,0.30,"square",22); boom(48,0.50,0.20,0.05) },
+      win(){     boom(52,0.80,0.55); sweep(200,2600,0.35,0.30,0.7);
+                 melody([[392,0.45,0.16],[523.25,0.61,0.16],[659.25,0.77,0.16],[783.99,0.93,0.40],
+                         [196,1.36,1.05],[523.25,1.36,0.85],[659.25,1.36,0.90],[783.99,1.36,0.95]],"sawtooth",0.16) }
+    },
+    c:{ /* 異：不気味で電子的 */
+      capture(){ sweep(6800,260,0.13,0.50,1.6); metal(1900,0.40,0.16); boom(74,0.42,0.40,0.10) },
+      drop(){    drone(46,0.85,0.28,"sawtooth",38); drone(49,0.85,0.16,"square",-30,0.02);
+                 metal(1450,0.70,0.09,0.02) },
+      win(){     sweep(400,6000,0.30,0.30,1.2); boom(60,0.70,0.45);
+                 melody([[587.33,0.44,0.12],[783.99,0.56,0.12],[987.77,0.68,0.12],[1174.7,0.80,0.36],
+                         [293.66,1.22,1.05],[587.33,1.22,0.85],[880,1.22,0.90],[1174.7,1.22,0.95]],"square",0.13) }
+    }
+  };
+  const set = ()=> SETS[OPT.sfxSet] || SETS.a;
+
   /* iOS/Safari は画面復帰などで音声が止まることがあるため、鳴らす直前に起こし直す */
   const on = ()=>{
     if(OPT.sound === "off") return false;
@@ -1301,12 +1418,12 @@ const SFX = (()=>{
     tap(){      if(on()) clack(1500, 0.045, 0.12, 9) },
     select(){   if(on()) clack(1800, 0.05, 0.14, 10) },
     move(){     if(on()) clack(820, 0.14, 0.55, 5) },
-    capture(){  if(on()){ clack(560, 0.20, 0.75, 3); tone(180, 0.16, 0.18, "sawtooth", 0.02) } },
-    drop(){     if(on()) clack(1050, 0.12, 0.5, 6) },
+    capture(){  if(on()) set().capture() },
+    drop(){     if(on()) set().drop() },
     turn(){     if(on()) clack(1300, 0.07, 0.22, 8) },
     blocked(){  if(on()) tone(150, 0.12, 0.16, "square") },
     check(){    if(on()){ tone(880,0.14,0.22,"triangle"); tone(1320,0.18,0.20,"triangle",0.09) } },
-    win(){      if(on()){ [523.25,659.25,783.99,1046.5].forEach((f,i)=>tone(f,0.5,0.22,"sine",i*0.11)) } },
+    win(){      if(on()) set().win() },
     lose(){     if(on()){ [440,392,329.63,261.63].forEach((f,i)=>tone(f,0.55,0.20,"sine",i*0.14)) } },
     draw(){     if(on()){ tone(392,0.4,0.18); tone(392,0.4,0.14,"sine",0.18) } }
   };
@@ -1317,6 +1434,36 @@ const SFX = (()=>{
 document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) SFX.unlock() });
 window.addEventListener("pageshow", ()=>SFX.unlock());
 window.addEventListener("focus", ()=>SFX.unlock());
+
+/* ================= 演出 ================= */
+const FX = {
+  /* 斬撃：討たれたマスに斬り筋を走らせ、盤を短く揺らす */
+  slash(idx){
+    setTimeout(()=>{               /* 描画が終わってから重ねる */
+      const cell = boardEl && boardEl.children[idx];
+      if(!cell) return;
+      const el = document.createElement("span");
+      el.className = "fx-slash";
+      cell.appendChild(el);
+      setTimeout(()=>el.remove(), 460);
+      quake("quake", 380);
+    }, 0);
+  },
+  /* 勝利：画面を弾けさせ、盤を大きく揺らす */
+  win(){
+    const el = document.createElement("div");
+    el.className = "fx-burst";
+    document.body.appendChild(el);
+    setTimeout(()=>el.remove(), 950);
+    quake("quake-big", 700);
+  }
+};
+function quake(cls,ms){
+  const fr = document.querySelector(".board-frame");
+  if(!fr) return;
+  fr.classList.remove(cls); void fr.offsetWidth; fr.classList.add(cls);
+  setTimeout(()=>fr.classList.remove(cls), ms);
+}
 
 /* ================= 画面管理 ================= */
 function showScreen(id){
@@ -1618,6 +1765,9 @@ const OPTDEFS=[
   {k:"sound",label:"効果音",
    opts:[["on","あり"],["off","なし"]],
    get:()=>OPT.sound, set:v=>{OPT.sound=v; if(v==="on"){SFX.unlock();SFX.move()}}},
+  {k:"sfxSet",label:"効果音のタイプ",
+   opts:[["a","斬 — 鋭く速い"],["b","重 — 鈍く重い"],["c","異 — 不気味で電子的"]],
+   get:()=>OPT.sfxSet, set:v=>{OPT.sfxSet=v; SFX.unlock(); SFX.capture()}},
   {k:"arrows",label:"移動方向の目印",
    opts:[["on","常時表示"],["sel","選択時のみ"],["off","非表示"]],
    get:()=>OPT.arrows, set:v=>{OPT.arrows=v}}
@@ -1631,6 +1781,15 @@ function renderOptions(hostId){
       +list.map(([v,t])=>`<option value="${v}"${v===cur?" selected":""}>${t}</option>`).join("")
       +`</select></label>`;
   }).join("");
+  /* 音は聞き比べて決めたいので、その場で鳴らせるようにする */
+  el.insertAdjacentHTML("beforeend",
+    `<div class="try"><span>試聴</span>`
+   +`<button data-try="capture">取る</button>`
+   +`<button data-try="drop">打つ</button>`
+   +`<button data-try="win">勝利</button></div>`);
+  el.querySelectorAll("[data-try]").forEach(b=>b.addEventListener("click",()=>{
+    SFX.unlock(); const k=b.dataset.try; if(SFX[k]) SFX[k]();
+  }));
   el.querySelectorAll("select[data-opt]").forEach(sel=>sel.addEventListener("change",e=>{
     const d=OPTDEFS.find(x=>x.k===e.target.dataset.opt); if(!d) return;
     d.set(e.target.value); syncOptions(); render();
