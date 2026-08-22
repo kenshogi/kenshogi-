@@ -214,6 +214,17 @@ select{font:inherit;font-size:12px;background:var(--card);color:var(--strong);
 .wb-txt .me b{color:var(--p0)}
 .wb-txt .op b{color:var(--p1)}
 
+/* ---- 危険マス（入門のみ）・棋譜の勝率差 ---- */
+.cell.danger::before{content:"";position:absolute;inset:2px;z-index:4;pointer-events:none;
+  border:2px solid var(--alert);border-radius:5px;
+  box-shadow:0 0 0 2px rgba(255,255,255,.55);animation:fx-danger 1.4s ease-in-out infinite}
+@keyframes fx-danger{0%,100%{opacity:.45}50%{opacity:1}}
+.wr{font-family:ui-monospace,monospace;font-size:11px;font-weight:700;
+  padding:1px 5px;border-radius:6px;margin-left:4px}
+.wr{color:var(--text-dim);background:rgba(34,32,58,.07)}
+.wr.up{color:#0c6b3c;background:rgba(18,161,80,.18)}
+.wr.down{color:#a2183c;background:rgba(209,52,91,.18)}
+
 /* ---- 演出 ---- */
 .fx-slash{position:absolute;inset:-45%;pointer-events:none;z-index:9;overflow:hidden}
 .fx-slash::before,.fx-slash::after{content:"";position:absolute;left:0;top:50%;width:100%;height:4px;
@@ -856,13 +867,31 @@ function placeAuto(){
   S.sel=null;render();
 }
 function counts(o){const c=[0,0,0,0];for(let i=0;i<81;i++){const q=S.board[i];if(q&&dO(q)===o)c[dT(q)]++}return c}
-function startGame(){S.phase="play";S.turn=0;S.sel=null;S.armed=null;S.log=[];hist=[];S.dropArmed=null;S.pendingDrop=null;S.posCount={};S.plies=[];render()}
+function startGame(){S.phase="play";S.turn=0;S.sel=null;S.armed=null;S.log=[];hist=[];S.dropArmed=null;S.pendingDrop=null;S.posCount={};S.plies=[];resetWR();render()}
 
 /* ================= 進行 ================= */
 function pushHist(){
   hist.push({b:Array.from(S.board),h:[[...S.hand[0]],[...S.hand[1]]],
     t:S.turn,l:S.log.slice(),m:S.move,ls:S.last,
     pc:Object.assign({},S.posCount),pl:S.plies.slice()});
+}
+/* 直前の手で形勢がどれだけ動いたかを棋譜に添える */
+let lastWR = null;
+function resetWR(){ lastWR = (S.phase==="play") ? winRate() : null }
+function stampWR(){
+  if(S.drill!=null || !OPT.winbar) { lastWR = winRate(); return }
+  const wr = winRate(), pct = Math.round(wr*100);
+  if(S.log.length){
+    let cls="", tag=`${pct}%`;
+    if(lastWR!=null){
+      const d = Math.round((wr-lastWR)*100);
+      /* 5ポイント以上動いた手だけ色を付けて目立たせる */
+      if(d>=5){ cls=" up";   tag=`${pct}% \u25b2${d}` }
+      else if(d<=-5){ cls=" down"; tag=`${pct}% \u25bc${-d}` }
+    }
+    S.log[0] += ` <span class="wr${cls}">${tag}</span>`;
+  }
+  lastWR = wr;
 }
 function endWin(w,by){
   S.winner=w;S.winBy=by;
@@ -905,7 +934,7 @@ function performMove(from,to,face){
   }
   S.board[to]=enc(owner,t,face); S.board[from]=0; S.last=[from,to];
   if(q){ SFX.capture(); FX.slash(to) } else SFX.move();
-  S.log.unshift(`<b>${S.move}.</b> ${owner===0?"▲":"△"}${SQ(to)}${KANJI[t]}${note?" "+note:""}`);
+  S.log.unshift(`<b>${S.move}.</b> ${owner===0?"▲":"△"}${SQ(to)}${KANJI[t]}${note?" "+note:""}`); stampWR();
   if(owner===CPU){
     S.enemyMove = q
       ? `<b>${SQ(to)}</b> の ${KANJI[dT(q)]} を ${KANJI[t]} で取られた`
@@ -921,7 +950,7 @@ function performRotate(idx,dir){
   const c=S.board[idx];
   S.board[idx]=enc(dO(c),dT(c),dir); S.last=[idx,idx];
   SFX.turn();
-  S.log.unshift(`<b>${S.move}.</b> ${S.turn===0?"▲":"△"}${SQ(idx)}${KANJI[dT(c)]} ${ARROW[dir]}へ向き変え`);
+  S.log.unshift(`<b>${S.move}.</b> ${S.turn===0?"▲":"△"}${SQ(idx)}${KANJI[dT(c)]} ${ARROW[dir]}へ向き変え`); stampWR();
   if(S.turn===CPU){
     S.enemyMove=`<b>${SQ(idx)}</b> の ${KANJI[dT(c)]} が ${ARROW[dir]} へ向き直った`;
     S.enemyCells=[idx];
@@ -933,7 +962,7 @@ function performDrop(t,to,face){
   const owner=S.turn;
   S.board[to]=enc(owner,t,face); S.hand[owner][t]--; S.last=[to,to];
   SFX.drop();
-  S.log.unshift(`<b>${S.move}.</b> ${owner===0?"▲":"△"}${SQ(to)}${KANJI[t]} ${ARROW[face]}向きで打つ`);
+  S.log.unshift(`<b>${S.move}.</b> ${owner===0?"▲":"△"}${SQ(to)}${KANJI[t]} ${ARROW[face]}向きで打つ`); stampWR();
   if(owner===CPU){
     S.enemyMove=`<b>${SQ(to)}</b> へ ${KANJI[t]} を ${ARROW[face]} 向きで打たれた`;
     S.enemyCells=[to];
@@ -995,9 +1024,20 @@ function komaHtml(c,forceArrow){
   const arrows = show ? arrowsSvg(t) : "";
   return `<div class="koma p${o} ${t===GEN?"gen":""} f${f}"><div class="glyph">${icon(t,"ic")}${arrows}</div></div>`;
 }
+/* 入門のときだけ、次の手番で取られる自分の駒を知らせる */
+function dangerSet(){
+  const out = new Set();
+  if(OPT.level !== 1 || S.phase !== "play" || S.drill != null || S.winner != null) return out;
+  for(let i=0;i<81;i++){
+    const c = S.board[i];
+    if(c && dO(c)===HUMAN && threats(S.board, CPU, i) > 0) out.add(i);
+  }
+  return out;
+}
 function render(){
   const legal = S.sel!=null ? moves(S.board,S.sel) : [];
   const dropCells = S.dropArmed!=null ? dropZones(S.board,HUMAN) : [];
+  const danger = dangerSet();
   for(let i=0;i<81;i++){
     const el=boardEl.children[i],[x,y]=XY(i),c=S.board[i];
     let cls="cell";
@@ -1007,6 +1047,7 @@ function render(){
     if(S.dropArmed!=null && dropCells.includes(i)) cls+=" drop-target";
     if(S.last&&S.last.includes(i)) cls+=" last";
     if(S.enemyCells&&S.enemyCells.includes(i)) cls+=" enemylast";
+    if(danger.has(i)) cls+=" danger";
     el.className=cls;
     const m=legal.find(o=>o.to===i);
     const forceArrow = OPT.arrows==="sel" && S.sel===i;
@@ -1055,7 +1096,8 @@ function renderStatus(){
     const ck=OPT.check&&inCheck(S.board,S.turn);
     M.innerHTML=(S.turn===HUMAN?"あなたの手番":"コンピュータの手番")
       +(ck?' <span style="color:var(--alert)">王手</span>':"");
-    H.textContent=ck?"キングを守る手しか指せない":(S.sel!=null?"移動先か、向き変えを選ぶ":"駒か持ち駒を選ぶ");
+    const dn = OPT.level===1 && S.drill==null ? "　／　赤い枠＝取られる駒" : "";
+    H.textContent=(ck?"キングを守る手しか指せない":(S.sel!=null?"移動先か、向き変えを選ぶ":"駒か持ち駒を選ぶ"))+dn;
   }
   V.textContent=S.phase==="play"
     ?`${S.move}手目｜戦力 自${forceCount(S.board,S.hand,0)} : 敵${forceCount(S.board,S.hand,1)}`:"";
@@ -1220,9 +1262,10 @@ document.getElementById("btnUndo").addEventListener("click",()=>{
     S.winner=null;S.winBy="";S.sel=null;S.dropArmed=null;S.pendingDrop=null;
     if(S.turn===HUMAN) break;
   }
+  resetWR();
   render();
 });
-const reset=()=>{S=fresh();hist=[];busy=false;placeCpu();render()};
+const reset=()=>{S=fresh();hist=[];busy=false;lastWR=null;placeCpu();render()};
 document.getElementById("btnReset").addEventListener("click",reset);
 document.getElementById("btnNew").addEventListener("click",reset);
 /* 設定の結線は renderOptions() に統合 */
